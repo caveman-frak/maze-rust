@@ -1,13 +1,20 @@
+use joinery::Joinable;
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Cell {
     row: u32,
     column: u32,
 }
 
+impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.row, self.column)
+    }
+}
+
 pub fn print_cell(cell: Option<&Cell>) -> String {
-    cell.map_or(String::from("None"), |c| fmt::format(format_args!("Cell({},{})", c.row, c.column)))
+    cell.map_or(String::from("None"), |c| format!("{}", c))
 }
 
 #[derive(Debug)]
@@ -24,6 +31,20 @@ pub enum Direction {
     West,
 }
 
+impl fmt::Display for Grid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Grid(rows={}, columns={}, cells=[{}]",
+            self.rows,
+            self.columns,
+            self.cells
+                .clone()
+                .join_with(joinery::separators::CommaSpace)
+        )
+    }
+}
+
 #[allow(dead_code)]
 impl Grid {
     pub fn grid(rows: u32, columns: u32) -> Grid {
@@ -31,17 +52,14 @@ impl Grid {
 
         for row in 0..rows {
             for column in 0..columns {
-                let cell = Cell {
-                    row: row,
-                    column: column,
-                };
+                let cell = Cell { row, column };
                 cells.push(cell);
             }
         }
 
         Grid {
-            rows: rows,
-            columns: columns,
+            rows,
+            columns,
             cells,
         }
     }
@@ -56,6 +74,10 @@ impl Grid {
 
     pub fn columns(&self) -> u32 {
         self.columns
+    }
+
+    pub fn cells(&self) -> &Vec<Cell> {
+        &self.cells
     }
 
     pub fn cell(&self, row: u32, column: u32) -> &Cell {
@@ -115,6 +137,15 @@ mod tests {
         let grid = Grid::grid(2, 3);
 
         assert_eq!(grid.cells.len(), 6);
+    }
+
+    #[test]
+    fn check_immutable() {
+        let mut grid = Grid::grid(2, 3);
+
+        // TODO fix this so that cells is immutable, try storing a slice
+        grid.cells.remove(2);
+         assert_eq!(grid.cells.len(), 5);
     }
 
     #[test]
