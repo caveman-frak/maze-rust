@@ -31,52 +31,29 @@ pub enum Direction {
     West,
 }
 
-impl fmt::Display for Grid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Grid(rows={}, columns={}, cells=[{}]",
-            self.rows,
-            self.columns,
-            self.cells
-                .clone()
-                .join_with(joinery::separators::CommaSpace)
-        )
+pub fn grid(rows: u32, columns: u32) -> Grid {
+    let mut cells = vec![];
+
+    for row in 0..rows {
+        for column in 0..columns {
+            let cell = Cell { row, column };
+            cells.push(cell);
+        }
+    }
+
+    Grid {
+        rows,
+        columns,
+        cells,
     }
 }
 
-#[allow(dead_code)]
+pub fn square(size: u32) -> Grid {
+    grid(size, size)
+}
+
 impl Grid {
-    pub fn grid(rows: u32, columns: u32) -> Grid {
-        let mut cells = vec![];
-
-        for row in 0..rows {
-            for column in 0..columns {
-                let cell = Cell { row, column };
-                cells.push(cell);
-            }
-        }
-
-        Grid {
-            rows,
-            columns,
-            cells,
-        }
-    }
-
-    pub fn square(size: u32) -> Grid {
-        Grid::grid(size, size)
-    }
-
-    pub fn rows(&self) -> u32 {
-        self.rows
-    }
-
-    pub fn columns(&self) -> u32 {
-        self.columns
-    }
-
-    pub fn cells(&self) -> &Vec<Cell> {
+    pub fn cells(&self) -> &[Cell] {
         &self.cells
     }
 
@@ -120,13 +97,27 @@ impl Grid {
     }
 }
 
+impl fmt::Display for Grid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Grid(rows={}, columns={}, cells=[{}]",
+            self.rows,
+            self.columns,
+            self.cells
+                .clone()
+                .join_with(joinery::separators::CommaSpace)
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn check_square() {
-        let grid = Grid::square(2);
+        let grid = square(2);
 
         assert_eq!(grid.rows, 2);
         assert_eq!(grid.columns, 2);
@@ -134,23 +125,23 @@ mod tests {
 
     #[test]
     fn check_cell_count() {
-        let grid = Grid::grid(2, 3);
+        let grid = grid(2, 3);
 
         assert_eq!(grid.cells.len(), 6);
     }
 
     #[test]
     fn check_immutable() {
-        let mut grid = Grid::grid(2, 3);
+        let mut grid = grid(2, 3);
 
         // TODO fix this so that cells is immutable, try storing a slice
         grid.cells.remove(2);
-         assert_eq!(grid.cells.len(), 5);
+        assert_eq!(grid.cells.len(), 5);
     }
 
     #[test]
     fn check_cell_position() {
-        let grid = Grid::grid(2, 3);
+        let grid = grid(2, 3);
 
         for row in 0..grid.rows {
             for column in 0..grid.columns {
@@ -163,8 +154,8 @@ mod tests {
     }
 
     #[test]
-    fn check_neighbour() {
-        let grid = Grid::grid(2, 3);
+    fn check_neighbour_top_left() {
+        let grid = grid(3, 3);
         let cell = grid.cell(0, 0);
 
         assert!(matches!(grid.neighbour(cell, Direction::North), None));
@@ -177,5 +168,76 @@ mod tests {
             grid.neighbour(cell, Direction::East).unwrap(),
             grid.cell(0, 1)
         );
+    }
+
+    #[test]
+    fn check_neighbour_top_right() {
+        let grid = grid(3, 3);
+        let cell = grid.cell(0, 2);
+
+        assert!(matches!(grid.neighbour(cell, Direction::North), None));
+        assert_eq!(
+            grid.neighbour(cell, Direction::West).unwrap(),
+            grid.cell(0, 1)
+        );
+        assert_eq!(
+            grid.neighbour(cell, Direction::South).unwrap(),
+            grid.cell(1, 2)
+        );
+        assert!(matches!(grid.neighbour(cell, Direction::East), None));
+    }
+    #[test]
+    fn check_neighbour_center() {
+        let grid = grid(3, 3);
+        let cell = grid.cell(1, 1);
+
+        assert_eq!(
+            grid.neighbour(cell, Direction::North).unwrap(),
+            grid.cell(0, 1)
+        );
+        assert_eq!(
+            grid.neighbour(cell, Direction::West).unwrap(),
+            grid.cell(1, 0)
+        );
+        assert_eq!(
+            grid.neighbour(cell, Direction::South).unwrap(),
+            grid.cell(2, 1)
+        );
+        assert_eq!(
+            grid.neighbour(cell, Direction::East).unwrap(),
+            grid.cell(1, 2)
+        );
+    }
+    #[test]
+    fn check_neighbour_bottom_left() {
+        let grid = grid(3, 3);
+        let cell = grid.cell(2, 0);
+
+        assert_eq!(
+            grid.neighbour(cell, Direction::North).unwrap(),
+            grid.cell(1, 0)
+        );
+        assert!(matches!(grid.neighbour(cell, Direction::West), None));
+        assert!(matches!(grid.neighbour(cell, Direction::South), None));
+        assert_eq!(
+            grid.neighbour(cell, Direction::East).unwrap(),
+            grid.cell(2, 1)
+        );
+    }
+    #[test]
+    fn check_neighbour_bottom_right() {
+        let grid = grid(3, 3);
+        let cell = grid.cell(2, 2);
+
+        assert_eq!(
+            grid.neighbour(cell, Direction::North).unwrap(),
+            grid.cell(1, 2)
+        );
+        assert_eq!(
+            grid.neighbour(cell, Direction::West).unwrap(),
+            grid.cell(2, 1)
+        );
+        assert!(matches!(grid.neighbour(cell, Direction::South), None));
+        assert!(matches!(grid.neighbour(cell, Direction::East), None));
     }
 }

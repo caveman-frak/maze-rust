@@ -1,11 +1,9 @@
 mod grid;
 
 fn main() {
-    // let grid = grid::Grid { rows: 2, columns: 3 };
-    let grid = grid::Grid::grid(2, 3);
+    let grid = grid::square(3);
 
-    println!("grid = {},{}", grid.rows(), grid.columns());
-    println!("grid = {}", grid);
+    println!("grid = {}, len={}", grid, grid.cells().len());
 
     let cell = grid.cell(1, 1);
 
