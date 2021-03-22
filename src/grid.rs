@@ -131,15 +131,6 @@ mod tests {
     }
 
     #[test]
-    fn check_immutable() {
-        let mut grid = grid(2, 3);
-
-        // TODO fix this so that cells is immutable, try storing a slice
-        grid.cells.remove(2);
-        assert_eq!(grid.cells.len(), 5);
-    }
-
-    #[test]
     fn check_cell_position() {
         let grid = grid(2, 3);
 
