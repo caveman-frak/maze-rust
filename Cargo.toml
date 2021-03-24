@@ -1,5 +1,5 @@
 [package]
-name = "rust"
+name = "grid"
 version = "0.1.0"
 authors = ["tim"]
 edition = "2018"
