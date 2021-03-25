@@ -220,6 +220,7 @@ mod tests {
         assert_eq!(grid.neighbour(&cell, Direction::South), grid.cell(2, 1));
         assert_eq!(grid.neighbour(&cell, Direction::East), grid.cell(1, 2));
     }
+
     #[test]
     fn check_neighbour_bottom_left() {
         let grid = square(3);
@@ -230,6 +231,7 @@ mod tests {
         assert!(matches!(grid.neighbour(&cell, Direction::South), None));
         assert_eq!(grid.neighbour(&cell, Direction::East), grid.cell(2, 1));
     }
+
     #[test]
     fn check_neighbour_bottom_right() {
         let grid = square(3);
@@ -239,5 +241,15 @@ mod tests {
         assert_eq!(grid.neighbour(&cell, Direction::West), grid.cell(2, 1));
         assert!(matches!(grid.neighbour(&cell, Direction::South), None));
         assert!(matches!(grid.neighbour(&cell, Direction::East), None));
+    }
+
+    #[test]
+    fn check_masked() {
+        let grid = grid(2, 3, |r, c| r % 2 != c % 2);
+        assert_eq!(grid.cells.len(), 6);
+        assert_eq!(grid.cells().len(), 3);
+
+        assert!(matches!(grid.cell(0, 0), None));
+        assert!(matches!(grid.cell(0, 1), Some(_)));
     }
 }
