@@ -1,7 +1,8 @@
 use joinery::Joinable;
+use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Cell {
     row: u32,
     column: u32,
@@ -22,8 +23,10 @@ pub struct Grid {
     rows: u32,
     columns: u32,
     cells: Vec<Option<Cell>>,
+    neighbours: HashMap<Cell, Vec<Direction>>,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
     North,
     East,
@@ -35,10 +38,14 @@ pub fn grid<F>(rows: u32, columns: u32, allowed: F) -> Grid
 where
     F: Fn(u32, u32) -> bool,
 {
+    let cells = Grid::build_cells(rows, columns, allowed);
+    let neighbours = Grid::build_neighbours(&cells, rows, columns);
+
     Grid {
         rows,
         columns,
-        cells: build_cells(rows, columns, allowed),
+        cells,
+        neighbours,
     }
 }
 
@@ -46,28 +53,11 @@ pub fn square(size: u32) -> Grid {
     grid(size, size, allow_all)
 }
 
-fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
-where
-    F: Fn(u32, u32) -> bool,
-{
-    let mut cells = Vec::new();
-
-    for row in 0..rows {
-        for column in 0..columns {
-            cells.push(if allowed(row, column) {
-                Some(Cell { row, column })
-            } else {
-                None
-            });
-        }
-    }
-    cells
-}
-
 pub fn allow_all(_row: u32, _column: u32) -> bool {
     true
 }
 
+#[allow(dead_code)]
 impl Grid {
     /// Return a list of valid cells, exclude any that have been masked
     pub fn cells(&self) -> Vec<&Cell> {
@@ -80,8 +70,12 @@ impl Grid {
     /// * `row` - grid row
     /// * `column` - grid column
     pub fn cell(&self, row: u32, column: u32) -> Option<&Cell> {
-        let offset = (self.columns * row) + column;
-        self.cells[offset as usize].as_ref()
+        if row >= self.rows || column >= self.columns {
+            None
+        } else {
+            let offset = self.columns * row + column;
+            self.cells[offset as usize].as_ref()
+        }
     }
 
     /// Return the neighbouring cell if one exists, otherwise None
@@ -133,13 +127,75 @@ impl Grid {
             }
         }
     }
+
+    pub fn neighbours(&self, cell: &Cell) -> &[Direction] {
+        self.neighbours.get(cell).unwrap()
+    }
+
+    fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
+    where
+        F: Fn(u32, u32) -> bool,
+    {
+        let mut cells = Vec::new();
+
+        for row in 0..rows {
+            for column in 0..columns {
+                cells.push(if allowed(row, column) {
+                    Some(Cell { row, column })
+                } else {
+                    None
+                });
+            }
+        }
+        cells
+    }
+
+    fn build_neighbours(
+        cells: &[Option<Cell>],
+        rows: u32,
+        columns: u32,
+    ) -> HashMap<Cell, Vec<Direction>> {
+        let mut neighbours = HashMap::with_capacity((rows * columns) as usize);
+
+        for element in cells {
+            if element.is_some() {
+                let cell = element.as_ref().unwrap();
+                neighbours.insert(
+                    cell.clone(),
+                    Grid::_neighbours(&cells, rows, columns, &cell),
+                );
+            }
+        }
+
+        neighbours
+    }
+
+    fn _neighbours(cells: &[Option<Cell>], rows: u32, columns: u32, cell: &Cell) -> Vec<Direction> {
+        let mut neighbours = Vec::new();
+
+        if cell.row > 0 && cells[(columns * (cell.row - 1) + cell.column) as usize] != None {
+            neighbours.push(Direction::North);
+        }
+        if cell.column < columns - 1
+            && cells[(columns * cell.row + cell.column + 1) as usize] != None
+        {
+            neighbours.push(Direction::East);
+        }
+        if cell.row < rows - 1 && cells[(columns * (cell.row + 1) + cell.column) as usize] != None {
+            neighbours.push(Direction::South);
+        }
+        if cell.column > 0 && cells[(columns * cell.row + cell.column - 1) as usize] != None {
+            neighbours.push(Direction::West);
+        }
+        neighbours
+    }
 }
 
 impl fmt::Display for Grid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Grid(rows={}, columns={}, cells=[{:?}]",
+            "Grid(rows={}, columns={}, cells=[{}])",
             self.rows,
             self.columns,
             self.cells()
@@ -187,6 +243,14 @@ mod tests {
                 assert_eq!(cell.column, column);
             }
         }
+    }
+
+    #[test]
+    fn check_bounds() {
+        let grid = square(3);
+
+        assert!(matches!(grid.cell(0, 3), None));
+        assert!(matches!(grid.cell(4, 0), None));
     }
 
     #[test]
@@ -244,12 +308,61 @@ mod tests {
     }
 
     #[test]
+    fn check_neighbours_top_left() {
+        let grid = square(3);
+        let cell = grid.cell(0, 0).unwrap();
+
+        assert_eq!(
+            grid.neighbours(&cell),
+            vec![Direction::East, Direction::South]
+        )
+    }
+
+    #[test]
+    fn check_neighbours_center() {
+        let grid = square(3);
+        let cell = grid.cell(1, 1).unwrap();
+
+        assert_eq!(
+            grid.neighbours(&cell),
+            vec![
+                Direction::North,
+                Direction::East,
+                Direction::South,
+                Direction::West,
+            ]
+        )
+    }
+
+    #[test]
+    fn check_neighbours_bottom_right() {
+        let grid = square(3);
+        let cell = grid.cell(2, 2).unwrap();
+
+        assert_eq!(
+            grid.neighbours(&cell),
+            vec![Direction::North, Direction::West]
+        )
+    }
+
+    #[test]
     fn check_masked() {
-        let grid = grid(2, 3, |r, c| r % 2 != c % 2);
+        let alternate = |r, c| r % 2 != c % 2;
+        let grid = grid(2, 3, alternate);
         assert_eq!(grid.cells.len(), 6);
         assert_eq!(grid.cells().len(), 3);
 
         assert!(matches!(grid.cell(0, 0), None));
         assert!(matches!(grid.cell(0, 1), Some(_)));
+    }
+
+    #[test]
+    fn check_to_string() {
+        let grid = square(2);
+
+        assert_eq!(
+            grid.to_string(),
+            "Grid(rows=2, columns=2, cells=[(0, 0), (0, 1), (1, 0), (1, 1)])"
+        );
     }
 }

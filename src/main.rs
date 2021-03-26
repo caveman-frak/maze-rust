@@ -23,4 +23,6 @@ fn main() {
         grid.neighbour(&cell, grid::Direction::South),
         grid.neighbour(&cell, grid::Direction::West)
     );
+
+    println!("neighbours={:?}", grid.neighbours(cell));
 }
