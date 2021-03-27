@@ -25,4 +25,7 @@ fn main() {
     );
 
     println!("neighbours={:?}", grid.neighbours(cell));
+
+    let grid = grid::grid(5, 5, |r, c| r % 2 != c % 2);
+    print!("{}", grid.write_maze());
 }

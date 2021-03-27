@@ -189,6 +189,59 @@ impl Grid {
         }
         neighbours
     }
+
+    pub fn write_maze(&self) -> String {
+        let mut s = String::new();
+
+        const VDIV: char = '|';
+        const HDIV: char = '-';
+        const CORNER: char = '+';
+        const CELL: char = ' ';
+        const NONE: char = 'X';
+
+        for row in 0..self.rows {
+            // print top row, can ignore all cells for now
+            let start = (row * self.columns) as usize;
+            let end = start + self.columns as usize;
+            let cells = &self.cells[start..end];
+
+            // write an unconditional top line
+            if row == 0 {
+                s = self.write_line(s, cells, |_, _| CORNER, |_, _| HDIV);
+            }
+            // write the cell body and vertical dividers
+            // mark None cells as X
+            // TODO implement link checking and Eastern divider printing
+            s = self.write_line(
+                s,
+                cells,
+                |_, _| VDIV,
+                |_, c| match c {
+                    Option::Some(_) => CELL,
+                    Option::None => NONE,
+                },
+            );
+            // write horizontal dividers
+            // TODO implement link checking and Souther divider printing
+            s = self.write_line(s, cells, |_, _| CORNER, |_, _| HDIV);
+        }
+        s
+    }
+
+    // TODO find better way to pass the string instance, ideally without having to return it
+    fn write_line<F1, F2>(&self, mut s: String, cells: &[Option<Cell>], f1: F1, f2: F2) -> String
+    where
+        F1: Fn(&Grid, &Option<Cell>) -> char,
+        F2: Fn(&Grid, &Option<Cell>) -> char,
+    {
+        s.push(f1(self, &None));
+        for cell in cells {
+            s.push(f2(self, cell));
+            s.push(f1(self, cell));
+        }
+        s.push('\n');
+        s
+    }
 }
 
 impl fmt::Display for Grid {
@@ -363,6 +416,23 @@ mod tests {
         assert_eq!(
             grid.to_string(),
             "Grid(rows=2, columns=2, cells=[(0, 0), (0, 1), (1, 0), (1, 1)])"
+        );
+    }
+
+    #[test]
+    fn check_write_maze() {
+        let newline: String = String::from("\n");
+        let grid = square(2);
+
+        assert_eq!(
+            newline + &grid.write_maze(),
+            r#"
++-+-+
+| | |
++-+-+
+| | |
++-+-+
+"#
         );
     }
 }
