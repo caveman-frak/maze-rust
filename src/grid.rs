@@ -23,7 +23,7 @@ pub struct Grid {
     rows: u32,
     columns: u32,
     cells: Vec<Option<Cell>>,
-    neighbours: HashMap<Cell, Vec<Direction>>,
+    neighbours: HashMap<Cell, HashMap<Direction, Cell>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -96,39 +96,12 @@ impl Grid {
     ///     );
     /// ```
     pub fn neighbour(&self, cell: &Cell, direction: Direction) -> Option<&Cell> {
-        match direction {
-            Direction::North => {
-                if cell.row == 0 {
-                    None
-                } else {
-                    self.cell(cell.row - 1, cell.column)
-                }
-            }
-            Direction::East => {
-                if cell.column == self.columns - 1 {
-                    None
-                } else {
-                    self.cell(cell.row, cell.column + 1)
-                }
-            }
-            Direction::South => {
-                if cell.row == self.rows - 1 {
-                    None
-                } else {
-                    self.cell(cell.row + 1, cell.column)
-                }
-            }
-            Direction::West => {
-                if cell.column == 0 {
-                    None
-                } else {
-                    self.cell(cell.row, cell.column - 1)
-                }
-            }
-        }
+        let neighbours = self.neighbours(cell);
+
+        neighbours.get(&direction)
     }
 
-    pub fn neighbours(&self, cell: &Cell) -> &[Direction] {
+    pub fn neighbours(&self, cell: &Cell) -> &HashMap<Direction, Cell> {
         self.neighbours.get(cell).unwrap()
     }
 
@@ -154,7 +127,7 @@ impl Grid {
         cells: &[Option<Cell>],
         rows: u32,
         columns: u32,
-    ) -> HashMap<Cell, Vec<Direction>> {
+    ) -> HashMap<Cell, HashMap<Direction, Cell>> {
         let mut neighbours = HashMap::with_capacity((rows * columns) as usize);
 
         for element in cells {
@@ -170,22 +143,37 @@ impl Grid {
         neighbours
     }
 
-    fn _neighbours(cells: &[Option<Cell>], rows: u32, columns: u32, cell: &Cell) -> Vec<Direction> {
-        let mut neighbours = Vec::new();
+    fn _neighbours(
+        cells: &[Option<Cell>],
+        rows: u32,
+        columns: u32,
+        cell: &Cell,
+    ) -> HashMap<Direction, Cell> {
+        let mut neighbours = HashMap::new();
 
-        if cell.row > 0 && cells[(columns * (cell.row - 1) + cell.column) as usize] != None {
-            neighbours.push(Direction::North);
+        if cell.row > 0 {
+            let cell = cells[(columns * (cell.row - 1) + cell.column) as usize].as_ref();
+            if cell.is_some() {
+                neighbours.insert(Direction::North, cell.unwrap().clone());
+            }
         }
-        if cell.column < columns - 1
-            && cells[(columns * cell.row + cell.column + 1) as usize] != None
-        {
-            neighbours.push(Direction::East);
+        if cell.column < columns - 1 {
+            let cell = cells[(columns * cell.row + cell.column + 1) as usize].as_ref();
+            if cell.is_some() {
+                neighbours.insert(Direction::East, cell.unwrap().clone());
+            }
         }
-        if cell.row < rows - 1 && cells[(columns * (cell.row + 1) + cell.column) as usize] != None {
-            neighbours.push(Direction::South);
+        if cell.row < rows - 1 {
+            let cell = cells[(columns * (cell.row + 1) + cell.column) as usize].as_ref();
+            if cell.is_some() {
+                neighbours.insert(Direction::South, cell.unwrap().clone());
+            }
         }
-        if cell.column > 0 && cells[(columns * cell.row + cell.column - 1) as usize] != None {
-            neighbours.push(Direction::West);
+        if cell.column > 0 {
+            let cell = cells[(columns * cell.row + cell.column - 1) as usize].as_ref();
+            if cell.is_some() {
+                neighbours.insert(Direction::West, cell.unwrap().clone());
+            }
         }
         neighbours
     }
@@ -365,10 +353,14 @@ mod tests {
         let grid = square(3);
         let cell = grid.cell(0, 0).unwrap();
 
-        assert_eq!(
-            grid.neighbours(&cell),
-            vec![Direction::East, Direction::South]
-        )
+        let neighbours = grid.neighbours(&cell);
+        assert!(!neighbours.contains_key(&Direction::North));
+        assert!(neighbours.contains_key(&Direction::East));
+        assert!(neighbours.contains_key(&Direction::South));
+        assert!(!neighbours.contains_key(&Direction::West));
+
+        let neighbour = neighbours.get(&Direction::East);
+        assert_eq!(neighbour.unwrap(), &Cell { row: 0, column: 1 });
     }
 
     #[test]
@@ -376,15 +368,11 @@ mod tests {
         let grid = square(3);
         let cell = grid.cell(1, 1).unwrap();
 
-        assert_eq!(
-            grid.neighbours(&cell),
-            vec![
-                Direction::North,
-                Direction::East,
-                Direction::South,
-                Direction::West,
-            ]
-        )
+        let neighbours = grid.neighbours(&cell);
+        assert!(neighbours.contains_key(&Direction::North));
+        assert!(neighbours.contains_key(&Direction::East));
+        assert!(neighbours.contains_key(&Direction::South));
+        assert!(neighbours.contains_key(&Direction::West));
     }
 
     #[test]
@@ -392,10 +380,11 @@ mod tests {
         let grid = square(3);
         let cell = grid.cell(2, 2).unwrap();
 
-        assert_eq!(
-            grid.neighbours(&cell),
-            vec![Direction::North, Direction::West]
-        )
+        let neighbours = grid.neighbours(&cell);
+        assert!(neighbours.contains_key(&Direction::North));
+        assert!(!neighbours.contains_key(&Direction::East));
+        assert!(!neighbours.contains_key(&Direction::South));
+        assert!(neighbours.contains_key(&Direction::West));
     }
 
     #[test]
