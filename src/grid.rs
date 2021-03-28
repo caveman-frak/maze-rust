@@ -55,14 +55,13 @@ impl Grid {
     {
         let cells = Grid::build_cells(rows, columns, allowed);
         let neighbours = Grid::build_neighbours(&cells, rows, columns);
-        let links = Grid::build_links(&cells);
 
         Grid {
             rows,
             columns,
             cells,
             neighbours,
-            links,
+            links: HashMap::new(),
         }
     }
 
@@ -120,8 +119,8 @@ impl Grid {
         self.neighbours.get(cell).unwrap()
     }
 
-    pub fn links(&self, cell: &Cell) -> &HashSet<Direction> {
-        self.links.get(cell).unwrap()
+    pub fn links(&self, cell: &Cell) -> Option<&HashSet<Direction>> {
+        self.links.get(cell)
     }
 
     pub fn link_cell(&mut self, cell: &Cell, direction: Direction) {
@@ -131,13 +130,15 @@ impl Grid {
                 let from = cell.clone();
                 let to = c.clone();
 
-                self.links.entry(from).and_modify(|s| {
-                    s.insert(direction.clone());
-                });
+                self.links
+                    .entry(from)
+                    .or_insert_with(|| HashSet::new())
+                    .insert(direction.clone());
 
-                self.links.entry(to).and_modify(|s| {
-                    s.insert(direction.reverse());
-                });
+                self.links
+                    .entry(to)
+                    .or_insert_with(|| HashSet::new())
+                    .insert(direction.reverse());
 
                 println!("links += {:?}", self.links);
             }
@@ -205,18 +206,6 @@ impl Grid {
         neighbours
     }
 
-    fn build_links(cells: &[Option<Cell>]) -> HashMap<Cell, HashSet<Direction>> {
-        let mut links = HashMap::with_capacity(cells.len());
-
-        for element in cells {
-            if element.is_some() {
-                let cell = element.as_ref().unwrap();
-                links.insert(cell.clone(), HashSet::new());
-            }
-        }
-        links
-    }
-
     fn _neighbours(
         cells: &[Option<Cell>],
         rows: u32,
@@ -279,7 +268,7 @@ impl Grid {
                 s,
                 cells,
                 |g, c| {
-                    if c.is_some() && g.links(&c.as_ref().unwrap()).contains(&Direction::East) {
+                    if Grid::has_link(g, c, Direction::East) {
                         BLANK
                     } else {
                         VDIV
@@ -297,7 +286,7 @@ impl Grid {
                 cells,
                 |_, _| CORNER,
                 |g, c| {
-                    if c.is_some() && g.links(&c.as_ref().unwrap()).contains(&Direction::South) {
+                    if Grid::has_link(g, c, Direction::South) {
                         BLANK
                     } else {
                         HDIV
@@ -306,6 +295,16 @@ impl Grid {
             );
         }
         s
+    }
+
+    fn has_link(grid: &Grid, c: &Option<Cell>, direction: Direction) -> bool {
+        if c.is_some() {
+            let links = grid.links(&c.as_ref().unwrap());
+            if links.is_some() && links.unwrap().contains(&direction) {
+                return true;
+            }
+        }
+        false
     }
 
     // TODO find better way to pass the string instance, ideally without having to return it
