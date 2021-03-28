@@ -1,7 +1,7 @@
 mod grid;
 
 fn main() {
-    let grid = grid::square(3);
+    let grid = grid::Grid::square(3);
 
     println!("grid = {}, len={}", grid, grid.cells().len());
 
@@ -26,10 +26,10 @@ fn main() {
 
     println!("neighbours={:?}", grid.neighbours(cell));
 
-    let grid = grid::grid(5, 5, |r, c| r % 2 != c % 2);
+    let grid = grid::Grid::grid(5, 5, |r, c| r % 2 != c % 2);
     print!("{}", grid.write_maze());
 
-    let mut grid = grid::square(3);
+    let mut grid = grid::Grid::square(3);
     let cell = grid.cell(1, 1).unwrap().clone();
     grid.link_cell(&cell.clone(), grid::Direction::North);
     grid.link_cell(&cell.clone(), grid::Direction::South);

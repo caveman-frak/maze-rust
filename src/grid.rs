@@ -19,15 +19,6 @@ pub fn print_cell(cell: Option<&Cell>) -> String {
     cell.map_or(String::from("None"), |c| c.to_string())
 }
 
-#[derive(Debug)]
-pub struct Grid {
-    rows: u32,
-    columns: u32,
-    cells: Vec<Option<Cell>>,
-    neighbours: HashMap<Cell, HashMap<Direction, Cell>>,
-    links: HashMap<Cell, HashSet<Direction>>,
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Direction {
     North,
@@ -36,7 +27,6 @@ pub enum Direction {
     West,
 }
 
-#[allow(dead_code)]
 impl Direction {
     pub fn reverse(&self) -> Direction {
         match self {
@@ -48,33 +38,42 @@ impl Direction {
     }
 }
 
-pub fn grid<F>(rows: u32, columns: u32, allowed: F) -> Grid
-where
-    F: Fn(u32, u32) -> bool,
-{
-    let cells = Grid::build_cells(rows, columns, allowed);
-    let neighbours = Grid::build_neighbours(&cells, rows, columns);
-    let links = Grid::build_links(&cells);
-
-    Grid {
-        rows,
-        columns,
-        cells,
-        neighbours,
-        links,
-    }
-}
-
-pub fn square(size: u32) -> Grid {
-    grid(size, size, allow_all)
-}
-
-pub fn allow_all(_row: u32, _column: u32) -> bool {
-    true
+#[derive(Debug)]
+pub struct Grid {
+    rows: u32,
+    columns: u32,
+    cells: Vec<Option<Cell>>,
+    neighbours: HashMap<Cell, HashMap<Direction, Cell>>,
+    links: HashMap<Cell, HashSet<Direction>>,
 }
 
 #[allow(dead_code)]
 impl Grid {
+    pub fn grid<F>(rows: u32, columns: u32, allowed: F) -> Grid
+    where
+        F: Fn(u32, u32) -> bool,
+    {
+        let cells = Grid::build_cells(rows, columns, allowed);
+        let neighbours = Grid::build_neighbours(&cells, rows, columns);
+        let links = Grid::build_links(&cells);
+
+        Grid {
+            rows,
+            columns,
+            cells,
+            neighbours,
+            links,
+        }
+    }
+
+    pub fn square(size: u32) -> Grid {
+        Grid::grid(size, size, Grid::allow_all)
+    }
+
+    pub fn allow_all(_row: u32, _column: u32) -> bool {
+        true
+    }
+
     /// Return a list of valid cells, exclude any that have been masked
     pub fn cells(&self) -> Vec<&Cell> {
         self.cells.iter().filter_map(|x| x.as_ref()).collect()
@@ -342,7 +341,7 @@ mod tests {
 
     #[test]
     fn check_square() {
-        let grid = square(2);
+        let grid = Grid::square(2);
 
         assert_eq!(grid.rows, 2);
         assert_eq!(grid.columns, 2);
@@ -350,21 +349,21 @@ mod tests {
 
     #[test]
     fn check_cell_count() {
-        let grid = grid(2, 3, allow_all);
+        let grid = Grid::grid(2, 3, Grid::allow_all);
 
         assert_eq!(grid.cells.len(), 6);
     }
 
     #[test]
     fn check_valid_cell_count() {
-        let grid = grid(2, 3, allow_all);
+        let grid = Grid::grid(2, 3, Grid::allow_all);
 
         assert_eq!(grid.cells().len(), 6);
     }
 
     #[test]
     fn check_cell_position() {
-        let grid = grid(2, 3, allow_all);
+        let grid = Grid::grid(2, 3, Grid::allow_all);
 
         for row in 0..grid.rows {
             for column in 0..grid.columns {
@@ -378,7 +377,7 @@ mod tests {
 
     #[test]
     fn check_bounds() {
-        let grid = square(3);
+        let grid = Grid::square(3);
 
         assert!(matches!(grid.cell(0, 3), None));
         assert!(matches!(grid.cell(4, 0), None));
@@ -386,7 +385,7 @@ mod tests {
 
     #[test]
     fn check_neighbour_top_left() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(0, 0).unwrap();
 
         assert!(matches!(grid.neighbour(&cell, &Direction::North), None));
@@ -397,7 +396,7 @@ mod tests {
 
     #[test]
     fn check_neighbour_top_right() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(0, 2).unwrap();
 
         assert!(matches!(grid.neighbour(&cell, &Direction::North), None));
@@ -407,7 +406,7 @@ mod tests {
     }
     #[test]
     fn check_neighbour_center() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(1, 1).unwrap();
 
         assert_eq!(grid.neighbour(&cell, &Direction::North), grid.cell(0, 1));
@@ -418,7 +417,7 @@ mod tests {
 
     #[test]
     fn check_neighbour_bottom_left() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(2, 0).unwrap();
 
         assert_eq!(grid.neighbour(&cell, &Direction::North), grid.cell(1, 0));
@@ -429,7 +428,7 @@ mod tests {
 
     #[test]
     fn check_neighbour_bottom_right() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(2, 2).unwrap();
 
         assert_eq!(grid.neighbour(&cell, &Direction::North), grid.cell(1, 2));
@@ -440,7 +439,7 @@ mod tests {
 
     #[test]
     fn check_neighbours_top_left() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(0, 0).unwrap();
 
         let neighbours = grid.neighbours(&cell);
@@ -455,7 +454,7 @@ mod tests {
 
     #[test]
     fn check_neighbours_center() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(1, 1).unwrap();
 
         let neighbours = grid.neighbours(&cell);
@@ -467,7 +466,7 @@ mod tests {
 
     #[test]
     fn check_neighbours_bottom_right() {
-        let grid = square(3);
+        let grid = Grid::square(3);
         let cell = grid.cell(2, 2).unwrap();
 
         let neighbours = grid.neighbours(&cell);
@@ -480,7 +479,7 @@ mod tests {
     #[test]
     fn check_masked() {
         let alternate = |r, c| r % 2 != c % 2;
-        let grid = grid(2, 3, alternate);
+        let grid = Grid::grid(2, 3, alternate);
         assert_eq!(grid.cells.len(), 6);
         assert_eq!(grid.cells().len(), 3);
 
@@ -490,7 +489,7 @@ mod tests {
 
     #[test]
     fn check_to_string() {
-        let grid = square(2);
+        let grid = Grid::square(2);
 
         assert_eq!(
             grid.to_string(),
@@ -501,7 +500,7 @@ mod tests {
     #[test]
     fn check_write_maze() {
         let newline: String = String::from("\n");
-        let grid = square(2);
+        let grid = Grid::square(2);
 
         assert_eq!(
             newline + &grid.write_maze(),
