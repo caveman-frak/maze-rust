@@ -123,12 +123,13 @@ impl Grid {
         self.links.get(cell)
     }
 
-    pub fn link_cell(&mut self, cell: &Cell, direction: Direction) {
+    pub fn link_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
         let neighbour = self.neighbour(cell, direction.clone());
         match neighbour {
             Some(c) => {
                 let from = cell.clone();
                 let to = c.clone();
+                let target = c.clone();
 
                 self.links
                     .entry(from)
@@ -140,19 +141,20 @@ impl Grid {
                     .or_insert_with(|| HashSet::new())
                     .insert(direction.reverse());
 
-                println!("links += {:?}", self.links);
+                Some(target)
             }
-            None => (),
+            None => None,
         }
     }
 
-    pub fn unlink_cell(&mut self, cell: &Cell, direction: Direction) {
+    pub fn unlink_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
         let d = &direction;
         let r = &d.reverse();
         let neighbour = self.neighbour(cell, direction.clone());
         match neighbour {
             Some(c) => {
                 let to = c.clone();
+                let target = c.clone();
 
                 self.links.entry(cell.clone()).and_modify(|s| {
                     s.remove(d);
@@ -162,9 +164,9 @@ impl Grid {
                     s.remove(r);
                 });
 
-                println!("links -= {:?}", self.links);
+                Some(target)
             }
-            None => (),
+            None => None,
         }
     }
 
@@ -242,14 +244,14 @@ impl Grid {
     }
 
     pub fn write_maze(&self) -> String {
-        let mut s = String::new();
-
         const VDIV: char = '|';
         const HDIV: char = '-';
         const CORNER: char = '+';
         const CELL: char = ' ';
         const BLANK: char = ' ';
         const NONE: char = 'X';
+
+        let mut s = String::new();
 
         for row in 0..self.rows {
             // print top row, can ignore all cells for now
@@ -259,13 +261,13 @@ impl Grid {
 
             // write an unconditional top line
             if row == 0 {
-                s = self.write_line(s, cells, |_, _| CORNER, |_, _| HDIV);
+                self.write_line(&mut s, cells, |_, _| CORNER, |_, _| HDIV);
             }
             // write the cell body and vertical dividers
             // mark None cells as X
-            // TODO implement link checking and Eastern divider printing
-            s = self.write_line(
-                s,
+            // skip divider if the cell as an East link
+            self.write_line(
+                &mut s,
                 cells,
                 |g, c| {
                     if Grid::has_link(g, c, Direction::East) {
@@ -279,10 +281,10 @@ impl Grid {
                     Option::None => NONE,
                 },
             );
-            // write horizontal dividers
-            // TODO implement link checking and Souther divider printing
-            s = self.write_line(
-                s,
+            // write cell corners and horizontal dividers
+            // skip dividier if the cell has a South link
+            self.write_line(
+                &mut s,
                 cells,
                 |_, _| CORNER,
                 |g, c| {
@@ -307,8 +309,7 @@ impl Grid {
         false
     }
 
-    // TODO find better way to pass the string instance, ideally without having to return it
-    fn write_line<F1, F2>(&self, mut s: String, cells: &[Option<Cell>], f1: F1, f2: F2) -> String
+    fn write_line<F1, F2>(&self, s: &mut String, cells: &[Option<Cell>], f1: F1, f2: F2)
     where
         F1: Fn(&Grid, &Option<Cell>) -> char,
         F2: Fn(&Grid, &Option<Cell>) -> char,
@@ -319,7 +320,6 @@ impl Grid {
             s.push(f1(self, cell));
         }
         s.push('\n');
-        s
     }
 }
 
@@ -490,6 +490,54 @@ mod tests {
     }
 
     #[test]
+    fn check_link() {
+        let mut grid = Grid::square(2);
+
+        let cell_01 = grid.cell(0, 1).unwrap().clone();
+        let cell_11 = grid.cell(1, 1).unwrap().clone();
+
+        // add link from 1,1 North
+        assert!(matches!(
+            grid.link_cell(&cell_11, Direction::North),
+            Some(_)
+        ));
+
+        assert!(grid.links(&cell_01).unwrap().contains(&Direction::South));
+        assert!(grid.links(&cell_11).unwrap().contains(&Direction::North));
+    }
+
+    #[test]
+    fn check_invalid_link() {
+        let mut grid = Grid::square(2);
+
+        let cell_01 = grid.cell(0, 1).unwrap().clone();
+
+        // add link from 1,1 North
+        assert!(matches!(grid.link_cell(&cell_01, Direction::North), None));
+        assert!(matches!(grid.links(&cell_01), None));
+    }
+
+    #[test]
+    fn check_unlink() {
+        let mut grid = Grid::square(2);
+
+        let cell_01 = grid.cell(0, 1).unwrap().clone();
+        let cell_11 = grid.cell(1, 1).unwrap().clone();
+
+        // add link from 1,1 North
+        assert_eq!(grid.link_cell(&cell_11, Direction::North).unwrap(), cell_01);
+
+        // remove the link from the South
+        assert_eq!(
+            grid.unlink_cell(&cell_01, Direction::South).unwrap(),
+            cell_11
+        );
+
+        assert!(!grid.links(&cell_01).unwrap().contains(&Direction::South));
+        assert!(!grid.links(&cell_11).unwrap().contains(&Direction::North));
+    }
+
+    #[test]
     fn check_to_string() {
         let grid = Grid::square(2);
 
@@ -510,6 +558,26 @@ mod tests {
 +-+-+
 | | |
 +-+-+
+| | |
++-+-+
+"#
+        );
+    }
+
+    #[test]
+    fn check_write_linked_maze() {
+        let newline: String = String::from("\n");
+        let mut grid = Grid::square(2);
+
+        // add links from 0,0 East and 1,1 North
+        grid.link_cell(&grid.cell(0, 0).unwrap().clone(), Direction::East);
+        grid.link_cell(&grid.cell(1, 1).unwrap().clone(), Direction::North);
+        assert_eq!(
+            newline + &grid.write_maze(),
+            r#"
++-+-+
+|   |
++-+ +
 | | |
 +-+-+
 "#
