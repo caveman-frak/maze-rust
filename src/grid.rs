@@ -110,10 +110,10 @@ impl Grid {
     ///         grid.neighbour(&cell, grid::Direction::West)
     ///     );
     /// ```
-    pub fn neighbour(&self, cell: &Cell, direction: &Direction) -> Option<&Cell> {
+    pub fn neighbour(&self, cell: &Cell, direction: Direction) -> Option<&Cell> {
         let neighbours = self.neighbours(cell);
 
-        neighbours.get(direction)
+        neighbours.get(&direction)
     }
 
     pub fn neighbours(&self, cell: &Cell) -> &HashMap<Direction, Cell> {
@@ -125,12 +125,13 @@ impl Grid {
     }
 
     pub fn link_cell(&mut self, cell: &Cell, direction: Direction) {
-        let neighbour = self.neighbour(&cell, &direction);
+        let neighbour = self.neighbour(cell, direction.clone());
         match neighbour {
             Some(c) => {
+                let from = cell.clone();
                 let to = c.clone();
 
-                self.links.entry(cell.clone()).and_modify(|s| {
+                self.links.entry(from).and_modify(|s| {
                     s.insert(direction.clone());
                 });
 
@@ -145,17 +146,19 @@ impl Grid {
     }
 
     pub fn unlink_cell(&mut self, cell: &Cell, direction: Direction) {
-        let neighbour = self.neighbour(&cell, &direction);
+        let d = &direction;
+        let r = &d.reverse();
+        let neighbour = self.neighbour(cell, direction.clone());
         match neighbour {
             Some(c) => {
                 let to = c.clone();
 
                 self.links.entry(cell.clone()).and_modify(|s| {
-                    s.remove(&direction);
+                    s.remove(d);
                 });
 
                 self.links.entry(to).and_modify(|s| {
-                    s.remove(&direction.reverse());
+                    s.remove(r);
                 });
 
                 println!("links -= {:?}", self.links);
@@ -388,10 +391,10 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 0).unwrap();
 
-        assert!(matches!(grid.neighbour(&cell, &Direction::North), None));
-        assert!(matches!(grid.neighbour(&cell, &Direction::West), None));
-        assert_eq!(grid.neighbour(&cell, &Direction::South), grid.cell(1, 0));
-        assert_eq!(grid.neighbour(&cell, &Direction::East), grid.cell(0, 1));
+        assert!(matches!(grid.neighbour(cell, Direction::North), None));
+        assert!(matches!(grid.neighbour(cell, Direction::West), None));
+        assert_eq!(grid.neighbour(cell, Direction::South), grid.cell(1, 0));
+        assert_eq!(grid.neighbour(cell, Direction::East), grid.cell(0, 1));
     }
 
     #[test]
@@ -399,20 +402,20 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 2).unwrap();
 
-        assert!(matches!(grid.neighbour(&cell, &Direction::North), None));
-        assert_eq!(grid.neighbour(&cell, &Direction::West), grid.cell(0, 1));
-        assert_eq!(grid.neighbour(&cell, &Direction::South), grid.cell(1, 2));
-        assert!(matches!(grid.neighbour(&cell, &Direction::East), None));
+        assert!(matches!(grid.neighbour(cell, Direction::North), None));
+        assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(0, 1));
+        assert_eq!(grid.neighbour(cell, Direction::South), grid.cell(1, 2));
+        assert!(matches!(grid.neighbour(cell, Direction::East), None));
     }
     #[test]
     fn check_neighbour_center() {
         let grid = Grid::square(3);
         let cell = grid.cell(1, 1).unwrap();
 
-        assert_eq!(grid.neighbour(&cell, &Direction::North), grid.cell(0, 1));
-        assert_eq!(grid.neighbour(&cell, &Direction::West), grid.cell(1, 0));
-        assert_eq!(grid.neighbour(&cell, &Direction::South), grid.cell(2, 1));
-        assert_eq!(grid.neighbour(&cell, &Direction::East), grid.cell(1, 2));
+        assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(0, 1));
+        assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(1, 0));
+        assert_eq!(grid.neighbour(cell, Direction::South), grid.cell(2, 1));
+        assert_eq!(grid.neighbour(cell, Direction::East), grid.cell(1, 2));
     }
 
     #[test]
@@ -420,10 +423,10 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 0).unwrap();
 
-        assert_eq!(grid.neighbour(&cell, &Direction::North), grid.cell(1, 0));
-        assert!(matches!(grid.neighbour(&cell, &Direction::West), None));
-        assert!(matches!(grid.neighbour(&cell, &Direction::South), None));
-        assert_eq!(grid.neighbour(&cell, &Direction::East), grid.cell(2, 1));
+        assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(1, 0));
+        assert!(matches!(grid.neighbour(cell, Direction::West), None));
+        assert!(matches!(grid.neighbour(cell, Direction::South), None));
+        assert_eq!(grid.neighbour(cell, Direction::East), grid.cell(2, 1));
     }
 
     #[test]
@@ -431,10 +434,10 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 2).unwrap();
 
-        assert_eq!(grid.neighbour(&cell, &Direction::North), grid.cell(1, 2));
-        assert_eq!(grid.neighbour(&cell, &Direction::West), grid.cell(2, 1));
-        assert!(matches!(grid.neighbour(&cell, &Direction::South), None));
-        assert!(matches!(grid.neighbour(&cell, &Direction::East), None));
+        assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(1, 2));
+        assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(2, 1));
+        assert!(matches!(grid.neighbour(cell, Direction::South), None));
+        assert!(matches!(grid.neighbour(cell, Direction::East), None));
     }
 
     #[test]
@@ -442,7 +445,7 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 0).unwrap();
 
-        let neighbours = grid.neighbours(&cell);
+        let neighbours = grid.neighbours(cell);
         assert!(!neighbours.contains_key(&Direction::North));
         assert!(neighbours.contains_key(&Direction::East));
         assert!(neighbours.contains_key(&Direction::South));
@@ -457,7 +460,7 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(1, 1).unwrap();
 
-        let neighbours = grid.neighbours(&cell);
+        let neighbours = grid.neighbours(cell);
         assert!(neighbours.contains_key(&Direction::North));
         assert!(neighbours.contains_key(&Direction::East));
         assert!(neighbours.contains_key(&Direction::South));
@@ -469,7 +472,7 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 2).unwrap();
 
-        let neighbours = grid.neighbours(&cell);
+        let neighbours = grid.neighbours(cell);
         assert!(neighbours.contains_key(&Direction::North));
         assert!(!neighbours.contains_key(&Direction::East));
         assert!(!neighbours.contains_key(&Direction::South));
