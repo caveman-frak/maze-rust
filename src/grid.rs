@@ -622,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn check_draw() -> Result<(), image::ImageError> {
+    fn check_draw() -> ImageResult<()> {
         let mut grid = Grid::grid(5, 5, |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)));
         let cell = grid.cell(2, 2).unwrap().clone();
         grid.link_cell(&cell, Direction::North);
@@ -630,6 +630,6 @@ mod tests {
         grid.link_cell(&cell, Direction::East);
         grid.link_cell(&cell, Direction::West);
 
-        grid.draw("target/maze.png");
+        grid.draw("target/maze.png")
     }
 }
