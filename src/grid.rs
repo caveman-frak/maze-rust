@@ -257,7 +257,7 @@ impl Grid {
         s.push('\n');
     }
 
-    pub fn draw(&self, filename: &str) -> ImageResult<()> {
+    fn _draw(&self) -> image::RgbImage {
         let white = Rgb([255u8, 255u8, 255u8]);
         let black = Rgb([0u8, 0u8, 0u8]);
         let size = 10;
@@ -319,8 +319,14 @@ impl Grid {
             }
         }
 
+        img
+    }
+
+    pub fn draw(&self, filename: &str) -> ImageResult<()> {
+        let image = self._draw();
+
         // Write the contents of this image to the Writer in PNG format.
-        img.save_with_format(filename, ImageFormat::Png)
+        image.save_with_format(filename, ImageFormat::Png)
     }
 }
 
@@ -622,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn check_draw() -> ImageResult<()> {
+    fn check_draw() {
         let mut grid = Grid::grid(5, 5, |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)));
         let cell = grid.cell(2, 2).unwrap().clone();
         grid.link_cell(&cell, Direction::North);
@@ -630,6 +636,12 @@ mod tests {
         grid.link_cell(&cell, Direction::East);
         grid.link_cell(&cell, Direction::West);
 
-        grid.draw("target/maze.png")
+        let image = grid._draw();
+
+        assert_eq!(image.width(), 70);
+        assert_eq!(image.height(), 70);
+        assert_eq!(image.get_pixel(5, 5), &Rgb([128u8, 128u8, 128u8])); // border = grey
+        assert_eq!(image.get_pixel(15, 15), &Rgb([0u8, 0u8, 0u8])); // masked cell = black
+        assert_eq!(image.get_pixel(25, 25), &Rgb([255u8, 255u8, 255u8])); // valid cell = white
     }
 }
