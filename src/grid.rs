@@ -1,3 +1,8 @@
+extern crate image;
+extern crate imageproc;
+
+use image::{ImageFormat, ImageResult, Rgb, RgbImage};
+use imageproc::{drawing, rect};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
@@ -225,11 +230,12 @@ impl Grid {
         neighbours
     }
 
-    fn has_link(grid: &Grid, c: &Option<Cell>, direction: Direction) -> bool {
-        if c.is_some() {
-            let links = grid.links(&c.as_ref().unwrap());
-            if links.is_some() && links.unwrap().contains(&direction) {
-                return true;
+    fn has_link(grid: &Grid, cell: &Option<Cell>, direction: Direction) -> bool {
+        if let Some(c) = cell {
+            if let Some(l) = grid.links(c) {
+                if l.contains(&direction) {
+                    return true;
+                }
             }
         }
         false
@@ -249,6 +255,78 @@ impl Grid {
             s.push(f1(self, cell));
         }
         s.push('\n');
+    }
+
+    fn _draw(&self) -> image::RgbImage {
+        let white = Rgb([255u8, 255u8, 255u8]);
+        let black = Rgb([0u8, 0u8, 0u8]);
+        let size = 10;
+
+        // Create a new ImgBuf with width and height and grey background
+        let mut img: RgbImage = image::ImageBuffer::from_pixel(
+            size * (self.columns + 2),
+            size * (self.rows + 2),
+            Rgb([128u8, 128u8, 128u8]),
+        );
+
+        // fill in the maze with white and draw a black outline
+        drawing::draw_filled_rect_mut(
+            &mut img,
+            rect::Rect::at((size - 1) as i32, (size - 1) as i32)
+                .of_size((size * self.columns) + 1, (size * self.rows) + 1),
+            black,
+        );
+
+        for cell in &self.cells {
+            if let Some(c) = cell {
+                // cut our valid cells
+                drawing::draw_filled_rect_mut(
+                    &mut img,
+                    rect::Rect::at((size * (c.column + 1)) as i32, (size * (c.row + 1)) as i32)
+                        .of_size(size - 1, size - 1),
+                    white,
+                );
+                // cut out wall from top-right to bottom-right
+                if Grid::has_link(self, &cell, Direction::East) {
+                    drawing::draw_line_segment_mut(
+                        &mut img,
+                        (
+                            ((size * (c.column + 2)) - 1) as f32,
+                            (size * (c.row + 1)) as f32,
+                        ),
+                        (
+                            ((size * (c.column + 2)) - 1) as f32,
+                            ((size * (c.row + 2)) - 2) as f32,
+                        ),
+                        white,
+                    );
+                }
+                // cut out wall from bottom-left to bottom-right
+                if Grid::has_link(self, &cell, Direction::South) {
+                    drawing::draw_line_segment_mut(
+                        &mut img,
+                        (
+                            (size * (c.column + 1)) as f32,
+                            ((size * (c.row + 2)) - 1) as f32,
+                        ),
+                        (
+                            ((size * (c.column + 2)) - 2) as f32,
+                            ((size * (c.row + 2)) - 1) as f32,
+                        ),
+                        white,
+                    );
+                }
+            }
+        }
+
+        img
+    }
+
+    pub fn draw(&self, filename: &str) -> ImageResult<()> {
+        let image = self._draw();
+
+        // Write the contents of this image to the Writer in PNG format.
+        image.save_with_format(filename, ImageFormat::Png)
     }
 }
 
@@ -547,5 +625,23 @@ mod tests {
 +---+---+
 "#
         );
+    }
+
+    #[test]
+    fn check_draw() {
+        let mut grid = Grid::grid(5, 5, |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)));
+        let cell = grid.cell(2, 2).unwrap().clone();
+        grid.link_cell(&cell, Direction::North);
+        grid.link_cell(&cell, Direction::South);
+        grid.link_cell(&cell, Direction::East);
+        grid.link_cell(&cell, Direction::West);
+
+        let image = grid._draw();
+
+        assert_eq!(image.width(), 70);
+        assert_eq!(image.height(), 70);
+        assert_eq!(image.get_pixel(5, 5), &Rgb([128u8, 128u8, 128u8])); // border = grey
+        assert_eq!(image.get_pixel(15, 15), &Rgb([0u8, 0u8, 0u8])); // masked cell = black
+        assert_eq!(image.get_pixel(25, 25), &Rgb([255u8, 255u8, 255u8])); // valid cell = white
     }
 }

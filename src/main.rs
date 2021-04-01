@@ -8,4 +8,7 @@ fn main() {
     grid.link_cell(&cell, grid::Direction::East);
     grid.link_cell(&cell, grid::Direction::West);
     print!("{}", grid);
+
+    grid.draw("target/maze.png")
+        .expect("Could not write `target/maze.png`");
 }
