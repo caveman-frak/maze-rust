@@ -33,12 +33,42 @@ impl Direction {
 }
 
 #[derive(Debug)]
+struct Attributes {
+    neighbours: HashMap<Direction, Cell>,
+    links: HashSet<Direction>,
+}
+
+#[allow(dead_code)]
+impl Attributes {
+    fn new(neighbours: HashMap<Direction, Cell>) -> Attributes {
+        Attributes {
+            neighbours,
+            links: HashSet::new(),
+        }
+    }
+    fn get_neighbour(&self, direction: &Direction) -> Option<&Cell> {
+        self.neighbours.get(&direction)
+    }
+
+    fn has_link(&self, direction: &Direction) -> bool {
+        self.links.contains(&direction)
+    }
+
+    fn add_link(&mut self, direction: &Direction) -> bool {
+        self.links.insert(direction.clone())
+    }
+
+    fn remove_link(&mut self, direction: &Direction) -> bool {
+        self.links.remove(direction)
+    }
+}
+
+#[derive(Debug)]
 pub struct Grid {
     rows: u32,
     columns: u32,
     cells: Vec<Option<Cell>>,
-    neighbours: HashMap<Cell, HashMap<Direction, Cell>>,
-    links: HashMap<Cell, HashSet<Direction>>,
+    attributes: HashMap<Cell, Attributes>,
 }
 
 #[allow(dead_code)]
@@ -48,14 +78,13 @@ impl Grid {
         F: Fn(u32, u32) -> bool,
     {
         let cells = Grid::build_cells(rows, columns, allowed);
-        let neighbours = Grid::build_neighbours(&cells, rows, columns);
+        let attributes = Grid::build_attributes(&cells, rows, columns);
 
         Grid {
             rows,
             columns,
             cells,
-            neighbours,
-            links: HashMap::new(),
+            attributes,
         }
     }
 
@@ -94,7 +123,7 @@ impl Grid {
     ///
     /// ```
     ///     let grid = grid::square(3);
-    ///     let cell = grid.cell(0, 0).unwrap();
+    ///     let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
     ///     println!(
     ///         "neighbours -> N = {:?}, E = {:?}, S = {:?}, W = {:?}",
     ///         grid.neighbour(&cell, grid::Direction::North),
@@ -104,15 +133,27 @@ impl Grid {
     ///     );
     /// ```
     pub fn neighbour(&self, cell: &Cell, direction: Direction) -> Option<&Cell> {
-        self.neighbours(cell).get(&direction)
+        self.attributes(cell).get_neighbour(&direction)
     }
 
     pub fn neighbours(&self, cell: &Cell) -> &HashMap<Direction, Cell> {
-        self.neighbours.get(cell).unwrap()
+        &self.attributes(cell).neighbours
     }
 
-    pub fn links(&self, cell: &Cell) -> Option<&HashSet<Direction>> {
-        self.links.get(cell)
+    pub fn links(&self, cell: &Cell) -> &HashSet<Direction> {
+        &self.attributes(cell).links
+    }
+
+    fn attributes(&self, cell: &Cell) -> &Attributes {
+        self.attributes
+            .get(cell)
+            .expect(&format!("Missing attribute for {:?}", cell))
+    }
+
+    fn attributes_mut(&mut self, cell: &Cell) -> &mut Attributes {
+        self.attributes
+            .get_mut(cell)
+            .expect(&format!("Missing attribute for {:?}", cell))
     }
 
     pub fn link_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
@@ -121,42 +162,29 @@ impl Grid {
             Some(c) => {
                 let from = cell.clone();
                 let to = c.clone();
-                let target = c.clone();
+                // let target = c.clone();
 
-                self.links
-                    .entry(from)
-                    .or_insert_with(HashSet::new)
-                    .insert(direction.clone());
+                self.attributes_mut(&from).add_link(&direction);
+                self.attributes_mut(&to).add_link(&direction.reverse());
 
-                self.links
-                    .entry(to)
-                    .or_insert_with(HashSet::new)
-                    .insert(direction.reverse());
-
-                Some(target)
+                Some(to)
             }
             None => None,
         }
     }
 
     pub fn unlink_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
-        let d = &direction;
-        let r = &d.reverse();
         let neighbour = self.neighbour(cell, direction.clone());
         match neighbour {
             Some(c) => {
+                let from = cell.clone();
                 let to = c.clone();
-                let target = c.clone();
+                // let target = c.clone();
 
-                self.links.entry(cell.clone()).and_modify(|s| {
-                    s.remove(d);
-                });
+                self.attributes_mut(&from).remove_link(&direction);
+                self.attributes_mut(&to).remove_link(&direction.reverse());
 
-                self.links.entry(to).and_modify(|s| {
-                    s.remove(r);
-                });
-
-                Some(target)
+                Some(to)
             }
             None => None,
         }
@@ -180,23 +208,22 @@ impl Grid {
         cells
     }
 
-    fn build_neighbours(
+    fn build_attributes(
         cells: &[Option<Cell>],
         rows: u32,
         columns: u32,
-    ) -> HashMap<Cell, HashMap<Direction, Cell>> {
-        let mut neighbours = HashMap::with_capacity((rows * columns) as usize);
+    ) -> HashMap<Cell, Attributes> {
+        let mut attributes = HashMap::with_capacity((rows * columns) as usize);
 
         for element in cells {
-            if element.is_some() {
-                let cell = element.as_ref().unwrap();
-                neighbours.insert(
+            if let Some(cell) = element {
+                attributes.insert(
                     cell.clone(),
-                    Grid::_neighbours(&cells, rows, columns, &cell),
+                    Attributes::new(Grid::_neighbours(&cells, rows, columns, &cell)),
                 );
             }
         }
-        neighbours
+        attributes
     }
 
     fn _neighbours(
@@ -232,11 +259,7 @@ impl Grid {
 
     fn has_link(grid: &Grid, cell: &Option<Cell>, direction: Direction) -> bool {
         if let Some(c) = cell {
-            if let Some(l) = grid.links(c) {
-                if l.contains(&direction) {
-                    return true;
-                }
-            }
+            return grid.attributes(c).has_link(&direction);
         }
         false
     }
@@ -263,7 +286,7 @@ impl Grid {
         let size = 10;
 
         // Create a new ImgBuf with width and height and grey background
-        let mut img: RgbImage = image::ImageBuffer::from_pixel(
+        let mut image: RgbImage = image::ImageBuffer::from_pixel(
             size * (self.columns + 2),
             size * (self.rows + 2),
             Rgb([128u8, 128u8, 128u8]),
@@ -271,7 +294,7 @@ impl Grid {
 
         // fill in the maze with white and draw a black outline
         drawing::draw_filled_rect_mut(
-            &mut img,
+            &mut image,
             rect::Rect::at((size - 1) as i32, (size - 1) as i32)
                 .of_size((size * self.columns) + 1, (size * self.rows) + 1),
             black,
@@ -281,7 +304,7 @@ impl Grid {
             if let Some(c) = cell {
                 // cut our valid cells
                 drawing::draw_filled_rect_mut(
-                    &mut img,
+                    &mut image,
                     rect::Rect::at((size * (c.column + 1)) as i32, (size * (c.row + 1)) as i32)
                         .of_size(size - 1, size - 1),
                     white,
@@ -289,7 +312,7 @@ impl Grid {
                 // cut out wall from top-right to bottom-right
                 if Grid::has_link(self, &cell, Direction::East) {
                     drawing::draw_line_segment_mut(
-                        &mut img,
+                        &mut image,
                         (
                             ((size * (c.column + 2)) - 1) as f32,
                             (size * (c.row + 1)) as f32,
@@ -304,7 +327,7 @@ impl Grid {
                 // cut out wall from bottom-left to bottom-right
                 if Grid::has_link(self, &cell, Direction::South) {
                     drawing::draw_line_segment_mut(
-                        &mut img,
+                        &mut image,
                         (
                             (size * (c.column + 1)) as f32,
                             ((size * (c.row + 2)) - 1) as f32,
@@ -318,8 +341,7 @@ impl Grid {
                 }
             }
         }
-
-        img
+        image
     }
 
     pub fn draw(&self, filename: &str) -> ImageResult<()> {
@@ -422,7 +444,9 @@ mod tests {
 
         for row in 0..grid.rows {
             for column in 0..grid.columns {
-                let cell = grid.cell(row, column).unwrap();
+                let cell = grid
+                    .cell(row, column)
+                    .expect(&format!("Missing Cell {},{}", column, row));
 
                 assert_eq!(cell.row, row);
                 assert_eq!(cell.column, column);
@@ -441,7 +465,7 @@ mod tests {
     #[test]
     fn check_neighbour_top_left() {
         let grid = Grid::square(3);
-        let cell = grid.cell(0, 0).unwrap();
+        let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
 
         assert!(matches!(grid.neighbour(cell, Direction::North), None));
         assert!(matches!(grid.neighbour(cell, Direction::West), None));
@@ -452,7 +476,7 @@ mod tests {
     #[test]
     fn check_neighbour_top_right() {
         let grid = Grid::square(3);
-        let cell = grid.cell(0, 2).unwrap();
+        let cell = grid.cell(0, 2).expect("Missing Cell");
 
         assert!(matches!(grid.neighbour(cell, Direction::North), None));
         assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(0, 1));
@@ -462,7 +486,7 @@ mod tests {
     #[test]
     fn check_neighbour_center() {
         let grid = Grid::square(3);
-        let cell = grid.cell(1, 1).unwrap();
+        let cell = grid.cell(1, 1).expect("Missing Cell 1,1");
 
         assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(0, 1));
         assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(1, 0));
@@ -473,8 +497,7 @@ mod tests {
     #[test]
     fn check_neighbour_bottom_left() {
         let grid = Grid::square(3);
-        let cell = grid.cell(2, 0).unwrap();
-
+        let cell = grid.cell(2, 0).expect("Missing Cell");
         assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(1, 0));
         assert!(matches!(grid.neighbour(cell, Direction::West), None));
         assert!(matches!(grid.neighbour(cell, Direction::South), None));
@@ -484,7 +507,7 @@ mod tests {
     #[test]
     fn check_neighbour_bottom_right() {
         let grid = Grid::square(3);
-        let cell = grid.cell(2, 2).unwrap();
+        let cell = grid.cell(2, 2).expect("Missing Cell 2,2");
 
         assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(1, 2));
         assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(2, 1));
@@ -495,7 +518,7 @@ mod tests {
     #[test]
     fn check_neighbours_top_left() {
         let grid = Grid::square(3);
-        let cell = grid.cell(0, 0).unwrap();
+        let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
 
         let neighbours = grid.neighbours(cell);
         assert!(!neighbours.contains_key(&Direction::North));
@@ -504,13 +527,16 @@ mod tests {
         assert!(!neighbours.contains_key(&Direction::West));
 
         let neighbour = neighbours.get(&Direction::East);
-        assert_eq!(neighbour.unwrap(), &Cell { row: 0, column: 1 });
+        assert_eq!(
+            neighbour.expect("Missing Cell 0,1"),
+            &Cell { row: 0, column: 1 }
+        );
     }
 
     #[test]
     fn check_neighbours_center() {
         let grid = Grid::square(3);
-        let cell = grid.cell(1, 1).unwrap();
+        let cell = grid.cell(1, 1).expect("Missing Cell 1,1");
 
         let neighbours = grid.neighbours(cell);
         assert!(neighbours.contains_key(&Direction::North));
@@ -522,7 +548,7 @@ mod tests {
     #[test]
     fn check_neighbours_bottom_right() {
         let grid = Grid::square(3);
-        let cell = grid.cell(2, 2).unwrap();
+        let cell = grid.cell(2, 2).expect("Missing Cell 2,2");
 
         let neighbours = grid.neighbours(cell);
         assert!(neighbours.contains_key(&Direction::North));
@@ -546,8 +572,8 @@ mod tests {
     fn check_link() {
         let mut grid = Grid::square(2);
 
-        let cell_01 = grid.cell(0, 1).unwrap().clone();
-        let cell_11 = grid.cell(1, 1).unwrap().clone();
+        let cell_01 = grid.cell(0, 1).expect("Missing Cell 0,1").clone();
+        let cell_11 = grid.cell(1, 1).expect("Missing Cell 1,1").clone();
 
         // add link from 1,1 North
         assert!(matches!(
@@ -555,39 +581,44 @@ mod tests {
             Some(_)
         ));
 
-        assert!(grid.links(&cell_01).unwrap().contains(&Direction::South));
-        assert!(grid.links(&cell_11).unwrap().contains(&Direction::North));
+        assert!(grid.links(&cell_01).contains(&Direction::South));
+        assert!(grid.links(&cell_11).contains(&Direction::North));
     }
 
     #[test]
     fn check_invalid_link() {
         let mut grid = Grid::square(2);
 
-        let cell_01 = grid.cell(0, 1).unwrap().clone();
+        let cell_01 = grid.cell(0, 1).expect("Missing Cell 0,1").clone();
 
         // add link from 1,1 North
         assert!(matches!(grid.link_cell(&cell_01, Direction::North), None));
-        assert!(matches!(grid.links(&cell_01), None));
+        assert!(grid.links(&cell_01).is_empty());
     }
 
     #[test]
     fn check_unlink() {
         let mut grid = Grid::square(2);
 
-        let cell_01 = grid.cell(0, 1).unwrap().clone();
-        let cell_11 = grid.cell(1, 1).unwrap().clone();
+        let cell_01 = grid.cell(0, 1).expect("Missing Cell 0,1").clone();
+        let cell_11 = grid.cell(1, 1).expect("Missing Cell 1,1").clone();
 
         // add link from 1,1 North
-        assert_eq!(grid.link_cell(&cell_11, Direction::North).unwrap(), cell_01);
+        assert_eq!(
+            grid.link_cell(&cell_11, Direction::North)
+                .expect("Missing Cell 1,1"),
+            cell_01
+        );
 
         // remove the link from the South
         assert_eq!(
-            grid.unlink_cell(&cell_01, Direction::South).unwrap(),
+            grid.unlink_cell(&cell_01, Direction::South)
+                .expect("Missing Cell 0,1"),
             cell_11
         );
 
-        assert!(!grid.links(&cell_01).unwrap().contains(&Direction::South));
-        assert!(!grid.links(&cell_11).unwrap().contains(&Direction::North));
+        assert!(grid.links(&cell_01).is_empty());
+        assert!(grid.links(&cell_11).is_empty());
     }
 
     #[test]
@@ -613,8 +644,14 @@ mod tests {
         let mut grid = Grid::square(2);
 
         // add links from 0,0 East and 1,1 North
-        grid.link_cell(&grid.cell(0, 0).unwrap().clone(), Direction::East);
-        grid.link_cell(&grid.cell(1, 1).unwrap().clone(), Direction::North);
+        grid.link_cell(
+            &grid.cell(0, 0).expect("Missing Cell 0,0").clone(),
+            Direction::East,
+        );
+        grid.link_cell(
+            &grid.cell(1, 1).expect("Missing Cell 1,1").clone(),
+            Direction::North,
+        );
         assert_eq!(
             newline + &grid.to_string(),
             r#"
@@ -630,7 +667,7 @@ mod tests {
     #[test]
     fn check_draw() {
         let mut grid = Grid::grid(5, 5, |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)));
-        let cell = grid.cell(2, 2).unwrap().clone();
+        let cell = grid.cell(2, 2).expect("Missing Cell 2,2").clone();
         grid.link_cell(&cell, Direction::North);
         grid.link_cell(&cell, Direction::South);
         grid.link_cell(&cell, Direction::East);
