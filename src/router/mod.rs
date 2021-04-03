@@ -1,4 +1,5 @@
 pub mod binarytree;
+pub mod sidewinder;
 
 use super::grid::{Cell, Grid};
 

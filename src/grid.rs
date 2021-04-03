@@ -16,6 +16,16 @@ pub struct Cell {
     column: u32,
 }
 
+#[allow(dead_code)]
+impl Cell {
+    pub fn row(&self) -> u32 {
+        self.row
+    }
+    pub fn column(&self) -> u32 {
+        self.column
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum Direction {
     North,

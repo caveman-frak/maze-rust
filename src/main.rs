@@ -2,6 +2,7 @@ mod grid;
 mod router;
 
 use crate::router::binarytree::BinaryTree;
+use crate::router::sidewinder::SideWinder;
 
 fn main() {
     let mut rng = rand::thread_rng();
@@ -16,4 +17,14 @@ fn main() {
 
     grid.draw("target/maze.png")
         .expect("Could not write `target/maze.png`");
+
+    print!(
+        "{}",
+        grid::Grid::grid(
+            15,
+            15,
+            grid::Grid::allow_all,
+            &mut SideWinder::new(&mut rng),
+        )
+    );
 }

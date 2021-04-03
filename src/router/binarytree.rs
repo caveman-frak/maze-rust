@@ -11,7 +11,7 @@ impl<'a> BinaryTree<'a> {
         BinaryTree { rng }
     }
 
-    fn random(&mut self, grid: &Grid, cell: Cell) -> Option<Direction> {
+    fn direction(&mut self, grid: &Grid, cell: Cell) -> Option<Direction> {
         let mut directions = Vec::new();
 
         if grid.neighbour(&cell, Direction::North).is_some() {
@@ -30,10 +30,10 @@ impl<'a> BinaryTree<'a> {
 }
 
 impl<'a> Router for BinaryTree<'a> {
-    fn carve(&mut self, grid: &mut Grid, _cells: Vec<Option<Cell>>) {
-        for cell in _cells {
+    fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
+        for cell in cells {
             if let Some(c) = cell {
-                if let Some(direction) = self.random(grid, c) {
+                if let Some(direction) = self.direction(grid, c) {
                     grid.link_cell(&c, direction);
                 }
             }
