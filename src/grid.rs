@@ -1,3 +1,5 @@
+use crate::router::{NoOp, Router};
+
 extern crate image;
 extern crate imageproc;
 
@@ -6,14 +8,15 @@ use imageproc::{drawing, rect};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
+use std::iter::FromIterator;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Cell {
     row: u32,
     column: u32,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum Direction {
     North,
     East,
@@ -46,6 +49,7 @@ impl Attributes {
             links: HashSet::new(),
         }
     }
+
     fn get_neighbour(&self, direction: &Direction) -> Option<&Cell> {
         self.neighbours.get(&direction)
     }
@@ -55,7 +59,7 @@ impl Attributes {
     }
 
     fn add_link(&mut self, direction: &Direction) -> bool {
-        self.links.insert(direction.clone())
+        self.links.insert(*direction)
     }
 
     fn remove_link(&mut self, direction: &Direction) -> bool {
@@ -73,23 +77,28 @@ pub struct Grid {
 
 #[allow(dead_code)]
 impl Grid {
-    pub fn grid<F>(rows: u32, columns: u32, allowed: F) -> Grid
+    pub fn grid<F>(rows: u32, columns: u32, allowed: F, router: &mut dyn Router) -> Grid
     where
         F: Fn(u32, u32) -> bool,
     {
         let cells = Grid::build_cells(rows, columns, allowed);
         let attributes = Grid::build_attributes(&cells, rows, columns);
+        let c = cells.clone();
 
-        Grid {
+        let mut grid = Grid {
             rows,
             columns,
             cells,
             attributes,
-        }
+        };
+
+        router.carve(&mut grid, c);
+
+        grid
     }
 
     pub fn square(size: u32) -> Grid {
-        Grid::grid(size, size, Grid::allow_all)
+        Grid::grid(size, size, Grid::allow_all, &mut NoOp {})
     }
 
     pub fn allow_all(_row: u32, _column: u32) -> bool {
@@ -99,6 +108,10 @@ impl Grid {
     /// Return a list of valid cells, exclude any that have been masked
     pub fn cells(&self) -> Vec<&Cell> {
         self.cells.iter().filter_map(|x| x.as_ref()).collect()
+    }
+
+    pub fn cells_mut(&self) -> impl Iterator<Item = &Cell> + '_ {
+        self.cells.iter().filter_map(|x| x.as_ref())
     }
 
     /// Return the cell at the row and column, or None if the cell is masked
@@ -140,6 +153,15 @@ impl Grid {
         &self.attributes(cell).neighbours
     }
 
+    pub fn which_neighbours(&self, cell: &Cell, directions: &[Direction]) -> Vec<Direction> {
+        let d: HashSet<&Direction> = HashSet::from_iter(directions);
+        self.neighbours(cell)
+            .keys()
+            .copied()
+            .filter(|k| d.contains(k))
+            .collect()
+    }
+
     pub fn links(&self, cell: &Cell) -> &HashSet<Direction> {
         &self.attributes(cell).links
     }
@@ -147,24 +169,22 @@ impl Grid {
     fn attributes(&self, cell: &Cell) -> &Attributes {
         self.attributes
             .get(cell)
-            .expect(&format!("Missing attribute for {:?}", cell))
+            .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
     }
 
     fn attributes_mut(&mut self, cell: &Cell) -> &mut Attributes {
         self.attributes
             .get_mut(cell)
-            .expect(&format!("Missing attribute for {:?}", cell))
+            .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
     }
 
     pub fn link_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, direction.clone());
+        let neighbour = self.neighbour(cell, direction);
         match neighbour {
             Some(c) => {
-                let from = cell.clone();
-                let to = c.clone();
-                // let target = c.clone();
+                let to = *c;
 
-                self.attributes_mut(&from).add_link(&direction);
+                self.attributes_mut(&*cell).add_link(&direction);
                 self.attributes_mut(&to).add_link(&direction.reverse());
 
                 Some(to)
@@ -174,14 +194,12 @@ impl Grid {
     }
 
     pub fn unlink_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, direction.clone());
+        let neighbour = self.neighbour(cell, direction);
         match neighbour {
             Some(c) => {
-                let from = cell.clone();
-                let to = c.clone();
-                // let target = c.clone();
+                let to = *c;
 
-                self.attributes_mut(&from).remove_link(&direction);
+                self.attributes_mut(&*cell).remove_link(&direction);
                 self.attributes_mut(&to).remove_link(&direction.reverse());
 
                 Some(to)
@@ -194,7 +212,7 @@ impl Grid {
     where
         F: Fn(u32, u32) -> bool,
     {
-        let mut cells = Vec::new();
+        let mut cells = Vec::with_capacity((rows * columns) as usize);
 
         for row in 0..rows {
             for column in 0..columns {
@@ -218,11 +236,12 @@ impl Grid {
         for element in cells {
             if let Some(cell) = element {
                 attributes.insert(
-                    cell.clone(),
+                    *cell,
                     Attributes::new(Grid::_neighbours(&cells, rows, columns, &cell)),
                 );
             }
         }
+        attributes.shrink_to_fit();
         attributes
     }
 
@@ -236,22 +255,22 @@ impl Grid {
 
         if cell.row > 0 {
             if let Some(c) = cells[(columns * (cell.row - 1) + cell.column) as usize].as_ref() {
-                neighbours.insert(Direction::North, c.clone());
+                neighbours.insert(Direction::North, *c);
             }
         }
         if cell.column < columns - 1 {
             if let Some(c) = cells[(columns * cell.row + cell.column + 1) as usize].as_ref() {
-                neighbours.insert(Direction::East, c.clone());
+                neighbours.insert(Direction::East, *c);
             }
         }
         if cell.row < rows - 1 {
             if let Some(c) = cells[(columns * (cell.row + 1) + cell.column) as usize].as_ref() {
-                neighbours.insert(Direction::South, c.clone());
+                neighbours.insert(Direction::South, *c);
             }
         }
         if cell.column > 0 {
             if let Some(c) = cells[(columns * cell.row + cell.column - 1) as usize].as_ref() {
-                neighbours.insert(Direction::West, c.clone());
+                neighbours.insert(Direction::West, *c);
             }
         }
         neighbours
@@ -358,8 +377,8 @@ impl fmt::Display for Grid {
         const HDIV: char = '-';
         const CORNER: char = '+';
         const CELL: char = ' ';
-        const BLANK: char = ' ';
-        const NONE: char = 'X';
+        const LINK: char = ' ';
+        const NONE: char = '█';
 
         let mut s = String::new();
 
@@ -382,7 +401,7 @@ impl fmt::Display for Grid {
                 cells,
                 |g, c| {
                     if Grid::has_link(g, c, Direction::East) {
-                        BLANK
+                        LINK
                     } else {
                         VDIV
                     }
@@ -401,7 +420,7 @@ impl fmt::Display for Grid {
                 |_, _| CORNER,
                 |g, c| {
                     if Grid::has_link(g, c, Direction::South) {
-                        BLANK
+                        LINK
                     } else {
                         HDIV
                     }
@@ -426,27 +445,27 @@ mod tests {
 
     #[test]
     fn check_cell_count() {
-        let grid = Grid::grid(2, 3, Grid::allow_all);
+        let grid = Grid::grid(2, 3, Grid::allow_all, &mut NoOp {});
 
         assert_eq!(grid.cells.len(), 6);
     }
 
     #[test]
     fn check_valid_cell_count() {
-        let grid = Grid::grid(2, 3, Grid::allow_all);
+        let grid = Grid::grid(2, 3, Grid::allow_all, &mut NoOp {});
 
         assert_eq!(grid.cells().len(), 6);
     }
 
     #[test]
     fn check_cell_position() {
-        let grid = Grid::grid(2, 3, Grid::allow_all);
+        let grid = Grid::grid(2, 3, Grid::allow_all, &mut NoOp {});
 
         for row in 0..grid.rows {
             for column in 0..grid.columns {
                 let cell = grid
                     .cell(row, column)
-                    .expect(&format!("Missing Cell {},{}", column, row));
+                    .unwrap_or_else(|| panic!("Missing Cell {},{}", column, row));
 
                 assert_eq!(cell.row, row);
                 assert_eq!(cell.column, column);
@@ -560,7 +579,7 @@ mod tests {
     #[test]
     fn check_masked() {
         let alternate = |r, c| r % 2 != c % 2;
-        let grid = Grid::grid(2, 3, alternate);
+        let grid = Grid::grid(2, 3, alternate, &mut NoOp {});
         assert_eq!(grid.cells.len(), 6);
         assert_eq!(grid.cells().len(), 3);
 
@@ -624,13 +643,13 @@ mod tests {
     #[test]
     fn check_string_masked() {
         let newline: String = String::from("\n");
-        let grid = Grid::grid(2, 2, |r, c| r != 0 || c != 0);
+        let grid = Grid::grid(2, 2, |r, c| r != 0 || c != 0, &mut NoOp {});
 
         assert_eq!(
             newline + &grid.to_string(),
             r#"
 +---+---+
-|XXX|   |
+|███|   |
 +---+---+
 |   |   |
 +---+---+
@@ -666,7 +685,12 @@ mod tests {
 
     #[test]
     fn check_draw() {
-        let mut grid = Grid::grid(5, 5, |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)));
+        let mut grid = Grid::grid(
+            5,
+            5,
+            |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)),
+            &mut NoOp {},
+        );
         let cell = grid.cell(2, 2).expect("Missing Cell 2,2").clone();
         grid.link_cell(&cell, Direction::North);
         grid.link_cell(&cell, Direction::South);

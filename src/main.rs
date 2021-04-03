@@ -1,12 +1,17 @@
 mod grid;
+mod router;
+
+use crate::router::binarytree::BinaryTree;
 
 fn main() {
-    let mut grid = grid::Grid::grid(5, 5, |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)));
-    let cell = grid.cell(2, 2).unwrap().clone();
-    grid.link_cell(&cell, grid::Direction::North);
-    grid.link_cell(&cell, grid::Direction::South);
-    grid.link_cell(&cell, grid::Direction::East);
-    grid.link_cell(&cell, grid::Direction::West);
+    let mut rng = rand::thread_rng();
+    let grid = grid::Grid::grid(
+        5,
+        5,
+        |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)),
+        &mut BinaryTree::new(&mut rng),
+    );
+
     print!("{}", grid);
 
     grid.draw("target/maze.png")
