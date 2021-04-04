@@ -21,22 +21,22 @@ impl<'a> BinaryTree<'a> {
             directions.push(Direction::East);
         }
 
-        match directions.len() as u16 {
+        match directions.len() {
             0 => None,
             1 => Some(directions[0]),
-            range => Some(directions[(self.rng.gen::<u16>() % range) as usize]),
+            range => Some(directions[self.rng.gen::<usize>() % range]),
         }
     }
 }
 
 impl<'a> Router for BinaryTree<'a> {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
-        for cell in cells {
-            if let Some(c) = cell {
-                if let Some(direction) = self.direction(grid, c) {
-                    grid.link_cell(&c, direction);
-                }
-            }
+        self.carve_by_cell(grid, cells);
+    }
+
+    fn by_cell(&mut self, grid: &mut Grid, cell: Cell) {
+        if let Some(direction) = self.direction(grid, cell) {
+            grid.link_cell(&cell, direction);
         }
     }
 }
@@ -50,7 +50,7 @@ mod tests {
     fn check_mock_binarytree() {
         let newline: String = String::from("\n");
         let mut rng = StepRng::new(0, 1);
-        let grid = Grid::grid(3, 3, Grid::allow_all, &mut BinaryTree::new(&mut rng));
+        let grid = Grid::grid(3, 3, Grid::ALLOW_ALL, &mut BinaryTree::new(&mut rng));
 
         assert_eq!(
             newline + &grid.to_string(),

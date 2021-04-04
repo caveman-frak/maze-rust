@@ -8,7 +8,6 @@ use imageproc::{drawing, rect};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
-use std::iter::FromIterator;
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Cell {
@@ -87,6 +86,29 @@ pub struct Grid {
 
 #[allow(dead_code)]
 impl Grid {
+    /// Masking function that allows all cells
+    pub const ALLOW_ALL: &'static dyn Fn(u32, u32) -> bool = &|_, _| true;
+
+    /// Build a new grid instance.
+    ///
+    /// # Arguments
+    /// * `rows` - grid row size
+    /// * `columns` - grid column size
+    /// * `allowed` - function to determine if a cell position is allowed or should be masked
+    /// * `router` - router instance to carve out the links between cells
+    ///
+    ///   Construct a new 5x5 grid with the 4 corners masked and use the Bimary Tree algorith to
+    ///   carve out the links between cells.
+    /// ```
+    ///     let mut rng = rand::thread_rng();
+    ///     let grid = grid::Grid::grid(
+    ///         5,
+    ///         5,
+    ///         |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)),
+    ///         &mut BinaryTree::new(&mut rng),
+    /// );
+    /// ```
+    ///
     pub fn grid<F>(rows: u32, columns: u32, allowed: F, router: &mut dyn Router) -> Grid
     where
         F: Fn(u32, u32) -> bool,
@@ -108,11 +130,7 @@ impl Grid {
     }
 
     pub fn square(size: u32) -> Grid {
-        Grid::grid(size, size, Grid::allow_all, &mut NoOp {})
-    }
-
-    pub fn allow_all(_row: u32, _column: u32) -> bool {
-        true
+        Grid::grid(size, size, Grid::ALLOW_ALL, &mut NoOp {})
     }
 
     pub fn rows(&self) -> u32 {
@@ -125,10 +143,6 @@ impl Grid {
     /// Return a list of valid cells, exclude any that have been masked
     pub fn cells(&self) -> Vec<&Cell> {
         self.cells.iter().filter_map(|x| x.as_ref()).collect()
-    }
-
-    pub fn cells_mut(&self) -> impl Iterator<Item = &Cell> + '_ {
-        self.cells.iter().filter_map(|x| x.as_ref())
     }
 
     /// Return the cell at the row and column, or None if the cell is masked
@@ -168,15 +182,6 @@ impl Grid {
 
     pub fn neighbours(&self, cell: &Cell) -> &HashMap<Direction, Cell> {
         &self.attributes(cell).neighbours
-    }
-
-    pub fn which_neighbours(&self, cell: &Cell, directions: &[Direction]) -> Vec<Direction> {
-        let d: HashSet<&Direction> = HashSet::from_iter(directions);
-        self.neighbours(cell)
-            .keys()
-            .copied()
-            .filter(|k| d.contains(k))
-            .collect()
     }
 
     pub fn links(&self, cell: &Cell) -> &HashSet<Direction> {
@@ -462,21 +467,21 @@ mod tests {
 
     #[test]
     fn check_cell_count() {
-        let grid = Grid::grid(2, 3, Grid::allow_all, &mut NoOp {});
+        let grid = Grid::grid(2, 3, Grid::ALLOW_ALL, &mut NoOp {});
 
         assert_eq!(grid.cells.len(), 6);
     }
 
     #[test]
     fn check_valid_cell_count() {
-        let grid = Grid::grid(2, 3, Grid::allow_all, &mut NoOp {});
+        let grid = Grid::grid(2, 3, Grid::ALLOW_ALL, &mut NoOp {});
 
         assert_eq!(grid.cells().len(), 6);
     }
 
     #[test]
     fn check_cell_position() {
-        let grid = Grid::grid(2, 3, Grid::allow_all, &mut NoOp {});
+        let grid = Grid::grid(2, 3, Grid::ALLOW_ALL, &mut NoOp {});
 
         for row in 0..grid.rows {
             for column in 0..grid.columns {
@@ -608,8 +613,8 @@ mod tests {
     fn check_link() {
         let mut grid = Grid::square(2);
 
-        let cell_01 = grid.cell(0, 1).expect("Missing Cell 0,1").clone();
-        let cell_11 = grid.cell(1, 1).expect("Missing Cell 1,1").clone();
+        let cell_01 = *grid.cell(0, 1).expect("Missing Cell 0,1");
+        let cell_11 = *grid.cell(1, 1).expect("Missing Cell 1,1");
 
         // add link from 1,1 North
         assert!(matches!(
@@ -625,7 +630,7 @@ mod tests {
     fn check_invalid_link() {
         let mut grid = Grid::square(2);
 
-        let cell_01 = grid.cell(0, 1).expect("Missing Cell 0,1").clone();
+        let cell_01 = *grid.cell(0, 1).expect("Missing Cell 0,1");
 
         // add link from 1,1 North
         assert!(matches!(grid.link_cell(&cell_01, Direction::North), None));
@@ -636,8 +641,8 @@ mod tests {
     fn check_unlink() {
         let mut grid = Grid::square(2);
 
-        let cell_01 = grid.cell(0, 1).expect("Missing Cell 0,1").clone();
-        let cell_11 = grid.cell(1, 1).expect("Missing Cell 1,1").clone();
+        let cell_01 = *grid.cell(0, 1).expect("Missing Cell 0,1");
+        let cell_11 = *grid.cell(1, 1).expect("Missing Cell 1,1");
 
         // add link from 1,1 North
         assert_eq!(
@@ -679,15 +684,12 @@ mod tests {
         let newline: String = String::from("\n");
         let mut grid = Grid::square(2);
 
+        let cell_00 = *grid.cell(0, 0).expect("Missing Cell 0,0");
+        let cell_11 = *grid.cell(1, 1).expect("Missing Cell 1,1");
+
         // add links from 0,0 East and 1,1 North
-        grid.link_cell(
-            &grid.cell(0, 0).expect("Missing Cell 0,0").clone(),
-            Direction::East,
-        );
-        grid.link_cell(
-            &grid.cell(1, 1).expect("Missing Cell 1,1").clone(),
-            Direction::North,
-        );
+        grid.link_cell(&cell_00, Direction::East);
+        grid.link_cell(&cell_11, Direction::North);
         assert_eq!(
             newline + &grid.to_string(),
             r#"
@@ -708,7 +710,7 @@ mod tests {
             |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)),
             &mut NoOp {},
         );
-        let cell = grid.cell(2, 2).expect("Missing Cell 2,2").clone();
+        let cell = *grid.cell(2, 2).expect("Missing Cell 2,2");
         grid.link_cell(&cell, Direction::North);
         grid.link_cell(&cell, Direction::South);
         grid.link_cell(&cell, Direction::East);
