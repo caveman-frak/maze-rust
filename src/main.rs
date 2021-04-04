@@ -20,11 +20,6 @@ fn main() {
 
     print!(
         "{}",
-        grid::Grid::grid(
-            15,
-            15,
-            grid::Grid::allow_all,
-            &mut SideWinder::new(&mut rng),
-        )
+        grid::Grid::grid(5, 5, grid::Grid::allow_all, &mut SideWinder::new(&mut rng),)
     );
 }

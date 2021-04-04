@@ -12,8 +12,8 @@ impl<'a> SideWinder<'a> {
         SideWinder { rng }
     }
 
-    fn close_row(&mut self, cell: Cell, row: u32) -> bool {
-        cell.row() != row || (row > 0 && (self.rng.gen::<u16>() % 2 == 0))
+    fn close_row(&mut self, cell: &Cell, columns: u32) -> bool {
+        cell.column() == columns - 1 || (cell.row() > 0 && (self.rng.gen::<u16>() % 2 == 0))
     }
 
     fn random(&mut self, run: &[Cell]) -> Cell {
@@ -23,22 +23,19 @@ impl<'a> SideWinder<'a> {
 
 impl<'a> Router for SideWinder<'a> {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
-        let mut row = 0u32;
         let mut run = Vec::new();
-        for cell in cells {
-            if let Some(c) = cell {
-                if c.row() != row {
-                    run.clear();
-                    row = c.row();
-                }
-                run.push(c);
-                if self.close_row(c, row) {
-                    if !run.is_empty() {
+        for row in 0..grid.rows() {
+            let start = (row * grid.columns()) as usize;
+            let end = start + grid.columns() as usize;
+            for cell in &cells[start..end] {
+                if let Some(c) = cell {
+                    run.push(*c);
+                    if self.close_row(c, grid.columns()) {
                         grid.link_cell(&self.random(&run), Direction::North);
+                        run.clear();
+                    } else {
+                        grid.link_cell(&c, Direction::East);
                     }
-                    run.clear();
-                } else {
-                    grid.link_cell(&c, Direction::East);
                 }
             }
         }
@@ -61,10 +58,10 @@ mod tests {
             r#"
 +---+---+---+
 |           |
-+---+   +   +
-|       |   |
 +   +   +   +
 |   |   |   |
++---+   +   +
+|       |   |
 +---+---+---+
 "#
         );

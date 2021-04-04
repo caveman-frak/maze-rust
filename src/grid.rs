@@ -115,6 +115,13 @@ impl Grid {
         true
     }
 
+    pub fn rows(&self) -> u32 {
+        self.rows
+    }
+    pub fn columns(&self) -> u32 {
+        self.columns
+    }
+
     /// Return a list of valid cells, exclude any that have been masked
     pub fn cells(&self) -> Vec<&Cell> {
         self.cells.iter().filter_map(|x| x.as_ref()).collect()
