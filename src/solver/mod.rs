@@ -1,3 +1,5 @@
+pub mod dijkstra;
+
 use crate::grid::{Cell, Grid};
 #[allow(unused_imports)]
 use crate::math::diff;
@@ -5,35 +7,37 @@ use crate::math::diff;
 use std::collections::HashMap;
 
 pub trait Solver {
-    fn solve(&mut self, grid: &mut Grid, start: (u32, u32)) -> Distances;
+    fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances;
 }
 
+#[derive(Debug)]
 pub struct Distances {
-    cells: HashMap<u32, Vec<Cell>>,
-    distances: HashMap<Cell, u32>,
+    cells: HashMap<Cell, u32>,
+    distances: HashMap<u32, Vec<Cell>>,
 }
 
 #[allow(dead_code)]
 impl Distances {
-    pub fn new(cells: HashMap<u32, Vec<Cell>>) -> Distances {
+    pub fn new(cells: HashMap<Cell, u32>) -> Distances {
         let distances = Distances::build_distances(&cells);
         Distances { cells, distances }
     }
 
-    fn build_distances(cells: &HashMap<u32, Vec<Cell>>) -> HashMap<Cell, u32> {
+    fn build_distances(cells: &HashMap<Cell, u32>) -> HashMap<u32, Vec<Cell>> {
         let mut distances = HashMap::new();
 
-        for (distance, list) in cells.iter() {
-            for cell in list {
-                distances.insert(*cell, *distance);
-            }
+        for (cell, distance) in cells {
+            distances
+                .entry(*distance)
+                .or_insert_with(Vec::new)
+                .push(*cell);
         }
         distances
     }
 
     pub fn start(&self) -> Cell {
         *self
-            .cells
+            .distances
             .get(&0)
             .expect("No cells at distance zero")
             .get(0)
@@ -41,14 +45,16 @@ impl Distances {
     }
 
     pub fn cells(&self, distance: u32) -> &[Cell] {
-        self.cells
-            .get(&distance)
-            .unwrap_or_else(|| panic!("Missing cells for distance {}", distance))
+        if let Some(cells) = self.distances.get(&distance) {
+            &cells
+        } else {
+            <&[Cell]>::default()
+        }
     }
 
     pub fn distance(&self, cell: Cell) -> u32 {
         *self
-            .distances
+            .cells
             .get(&cell)
             .unwrap_or_else(|| panic!("Missing distance for {:?}", cell))
     }
@@ -71,16 +77,13 @@ mod tests {
         assert_eq!(distances.cells(1).len(), 2);
     }
 
-    fn populate_map(start: (u32, u32), grid: &Grid) -> HashMap<u32, Vec<Cell>> {
-        let mut cells = HashMap::new();
+    fn populate_map(start: (u32, u32), grid: &Grid) -> HashMap<Cell, u32> {
+        let mut map = HashMap::new();
         let (row, column) = start;
 
         for cell in grid.cells() {
-            cells
-                .entry(diff(row, cell.row()) + diff(column, cell.column()))
-                .or_insert_with(Vec::new)
-                .push(*cell);
+            map.insert(*cell, diff(row, cell.row()) + diff(column, cell.column()));
         }
-        cells
+        map
     }
 }
