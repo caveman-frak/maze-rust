@@ -1,7 +1,5 @@
 use crate::router::{NoOp, Router};
-
-extern crate image;
-extern crate imageproc;
+// use crate::solver::{Distances, Solver};
 
 use image::{ImageFormat, ImageResult, Rgb, RgbImage};
 use imageproc::{drawing, rect};
@@ -20,8 +18,13 @@ impl Cell {
     pub fn row(&self) -> u32 {
         self.row
     }
+
     pub fn column(&self) -> u32 {
         self.column
+    }
+
+    pub fn coords(&self) -> (u32, u32) {
+        (self.row, self.column)
     }
 }
 
