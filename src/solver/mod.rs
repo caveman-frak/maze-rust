@@ -58,6 +58,24 @@ impl Distances {
             .get(&cell)
             .unwrap_or_else(|| panic!("Missing distance for {:?}", cell))
     }
+
+    pub fn all_cells(&self) -> &HashMap<Cell, u32> {
+        &self.cells
+    }
+}
+
+pub struct SimpleSolver {}
+
+impl Solver for SimpleSolver {
+    fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances {
+        let mut map = HashMap::new();
+        let (row, column) = start;
+
+        for cell in grid.cells() {
+            map.insert(*cell, diff(row, cell.row()) + diff(column, cell.column()));
+        }
+        Distances::new(map)
+    }
 }
 
 #[cfg(test)]
@@ -67,7 +85,7 @@ mod tests {
     #[test]
     fn check_build_distances() {
         let grid = Grid::square(2);
-        let distances = Distances::new(populate_map((0, 0), &grid));
+        let distances = SimpleSolver {}.solve(&grid, (0, 0));
 
         assert_eq!(distances.start().coords(), (0, 0));
         assert_eq!(
@@ -75,15 +93,5 @@ mod tests {
             2
         );
         assert_eq!(distances.cells(1).len(), 2);
-    }
-
-    fn populate_map(start: (u32, u32), grid: &Grid) -> HashMap<Cell, u32> {
-        let mut map = HashMap::new();
-        let (row, column) = start;
-
-        for cell in grid.cells() {
-            map.insert(*cell, diff(row, cell.row()) + diff(column, cell.column()));
-        }
-        map
     }
 }

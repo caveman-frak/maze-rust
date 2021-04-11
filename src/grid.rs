@@ -1,8 +1,10 @@
 use crate::router::{NoOp, Router};
-// use crate::solver::{Distances, Solver};
+use crate::solver::Distances;
 
 use image::{ImageFormat, ImageResult, Rgb, RgbImage};
 use imageproc::{drawing, rect};
+use std::char;
+use std::cmp;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
@@ -51,6 +53,7 @@ impl Direction {
 struct Attributes {
     neighbours: HashMap<Direction, Cell>,
     links: HashSet<Direction>,
+    distance: Option<u32>,
 }
 
 #[allow(dead_code)]
@@ -59,6 +62,7 @@ impl Attributes {
         Attributes {
             neighbours,
             links: HashSet::new(),
+            distance: None,
         }
     }
 
@@ -77,6 +81,10 @@ impl Attributes {
     fn remove_link(&mut self, direction: &Direction) -> bool {
         self.links.remove(direction)
     }
+
+    fn distance(&self) -> Option<u32> {
+        self.distance
+    }
 }
 
 #[derive(Debug)]
@@ -85,6 +93,7 @@ pub struct Grid {
     columns: u32,
     cells: Vec<Option<Cell>>,
     attributes: HashMap<Cell, Attributes>,
+    max_distance: Option<u32>,
 }
 
 #[allow(dead_code)]
@@ -125,6 +134,7 @@ impl Grid {
             columns,
             cells,
             attributes,
+            max_distance: None,
         };
 
         router.carve(&mut grid, c);
@@ -233,6 +243,15 @@ impl Grid {
         }
     }
 
+    pub fn apply_distances(&mut self, distances: Distances) {
+        let mut max = 0u32;
+        for (cell, distance) in distances.all_cells() {
+            max = cmp::max(max, *distance);
+            self.attributes_mut(cell).distance = Some(*distance);
+        }
+        self.max_distance = Some(max);
+    }
+
     fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
     where
         F: Fn(u32, u32) -> bool,
@@ -301,9 +320,9 @@ impl Grid {
         neighbours
     }
 
-    fn has_link(grid: &Grid, cell: &Option<Cell>, direction: Direction) -> bool {
+    fn has_link(&self, cell: &Option<Cell>, direction: Direction) -> bool {
         if let Some(c) = cell {
-            return grid.attributes(c).has_link(&direction);
+            return self.attributes(c).has_link(&direction);
         }
         false
     }
@@ -311,30 +330,37 @@ impl Grid {
     fn write_row<F1, F2>(&self, s: &mut String, scale: u32, row: &[Option<Cell>], f1: F1, f2: F2)
     where
         F1: Fn(&Grid, &Option<Cell>) -> char,
-        F2: Fn(&Grid, &Option<Cell>) -> char,
+        F2: Fn(&Grid, &Option<Cell>) -> (char, char),
     {
         s.push(f1(self, &None));
         for cell in row {
-            let ch = f2(self, cell);
-            for _ in 0..scale {
-                s.push(ch);
+            let (ch, pad) = f2(self, cell);
+            for i in 0..scale {
+                s.push(if i == scale / 2 { ch } else { pad });
             }
             s.push(f1(self, cell));
         }
         s.push('\n');
     }
 
+    fn gradient_colour(&self, start: Rgb<u8>, end: Rgb<u8>, ratio: f32) -> Rgb<u8> {
+        Rgb([
+            (start[0] as f32 * (1f32 - ratio) + end[0] as f32 * ratio) as u8,
+            (start[1] as f32 * (1f32 - ratio) + end[1] as f32 * ratio) as u8,
+            (start[2] as f32 * (1f32 - ratio) + end[2] as f32 * ratio) as u8,
+        ])
+    }
+
     fn _draw(&self) -> image::RgbImage {
         let white = Rgb([255u8, 255u8, 255u8]);
         let black = Rgb([0u8, 0u8, 0u8]);
+        let grey = Rgb([128u8, 128u8, 128u8]);
+        let blue = Rgb([0u8, 0u8, 255u8]);
         let size = 10;
 
         // Create a new ImgBuf with width and height and grey background
-        let mut image: RgbImage = image::ImageBuffer::from_pixel(
-            size * (self.columns + 2),
-            size * (self.rows + 2),
-            Rgb([128u8, 128u8, 128u8]),
-        );
+        let mut image: RgbImage =
+            image::ImageBuffer::from_pixel(size * (self.columns + 2), size * (self.rows + 2), grey);
 
         // fill in the maze with white and draw a black outline
         drawing::draw_filled_rect_mut(
@@ -346,15 +372,25 @@ impl Grid {
 
         for cell in &self.cells {
             if let Some(c) = cell {
+                let colour = if let Some(distance) = self.attributes(c).distance() {
+                    self.gradient_colour(
+                        white,
+                        blue,
+                        distance as f32 / self.max_distance.expect("Max distance not set") as f32,
+                    )
+                } else {
+                    white
+                };
+
                 // cut our valid cells
                 drawing::draw_filled_rect_mut(
                     &mut image,
                     rect::Rect::at((size * (c.column + 1)) as i32, (size * (c.row + 1)) as i32)
                         .of_size(size - 1, size - 1),
-                    white,
+                    colour,
                 );
                 // cut out wall from top-right to bottom-right
-                if Grid::has_link(self, &cell, Direction::East) {
+                if self.has_link(&cell, Direction::East) {
                     drawing::draw_line_segment_mut(
                         &mut image,
                         (
@@ -365,11 +401,11 @@ impl Grid {
                             ((size * (c.column + 2)) - 1) as f32,
                             ((size * (c.row + 2)) - 2) as f32,
                         ),
-                        white,
+                        colour,
                     );
                 }
                 // cut out wall from bottom-left to bottom-right
-                if Grid::has_link(self, &cell, Direction::South) {
+                if self.has_link(&cell, Direction::South) {
                     drawing::draw_line_segment_mut(
                         &mut image,
                         (
@@ -380,7 +416,7 @@ impl Grid {
                             ((size * (c.column + 2)) - 2) as f32,
                             ((size * (c.row + 2)) - 1) as f32,
                         ),
-                        white,
+                        colour,
                     );
                 }
             }
@@ -415,7 +451,7 @@ impl fmt::Display for Grid {
 
             // write an unconditional top line
             if row == 0 {
-                self.write_row(&mut s, 3, cells, |_, _| CORNER, |_, _| HDIV);
+                self.write_row(&mut s, 3, cells, |_, _| CORNER, |_, _| (HDIV, HDIV));
             }
             // write the cell body and vertical dividers
             // mark None cells as X
@@ -431,9 +467,16 @@ impl fmt::Display for Grid {
                         VDIV
                     }
                 },
-                |_, c| match c {
-                    Option::Some(_) => CELL,
-                    Option::None => NONE,
+                |g, c| match c {
+                    Option::Some(cell) => {
+                        if let Some(distance) = g.attributes(cell).distance() {
+                            if let Some(ch) = char::from_digit(distance, 36) {
+                                return (ch, CELL);
+                            }
+                        }
+                        (CELL, CELL)
+                    }
+                    Option::None => (NONE, NONE),
                 },
             );
             // write cell corners and horizontal dividers
@@ -445,9 +488,9 @@ impl fmt::Display for Grid {
                 |_, _| CORNER,
                 |g, c| {
                     if Grid::has_link(g, c, Direction::South) {
-                        LINK
+                        (LINK, LINK)
                     } else {
-                        HDIV
+                        (HDIV, HDIV)
                     }
                 },
             );

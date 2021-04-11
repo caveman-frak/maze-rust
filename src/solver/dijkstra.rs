@@ -9,6 +9,11 @@ impl Dijkstra {
     pub fn new() -> Dijkstra {
         Dijkstra {}
     }
+
+    pub fn solve(grid: &Grid, start: (u32, u32)) -> Distances {
+        Dijkstra::new().solve(grid, start)
+    }
+
     fn frontier(&self, map: &mut HashMap<Cell, u32>, grid: &Grid, cell: Cell, depth: u32) {
         map.insert(cell, depth);
         for direction in grid.links(&cell) {
