@@ -1,5 +1,6 @@
 use crate::router::{NoOp, Router};
 use crate::solver::Distances;
+use crate::util;
 
 use image::{ImageFormat, ImageResult, Rgb, RgbImage};
 use imageproc::{drawing, rect};
@@ -343,14 +344,6 @@ impl Grid {
         s.push('\n');
     }
 
-    fn gradient_colour(&self, start: Rgb<u8>, end: Rgb<u8>, ratio: f32) -> Rgb<u8> {
-        Rgb([
-            (start[0] as f32 * (1f32 - ratio) + end[0] as f32 * ratio) as u8,
-            (start[1] as f32 * (1f32 - ratio) + end[1] as f32 * ratio) as u8,
-            (start[2] as f32 * (1f32 - ratio) + end[2] as f32 * ratio) as u8,
-        ])
-    }
-
     fn _draw(&self) -> image::RgbImage {
         let white = Rgb([255u8, 255u8, 255u8]);
         let black = Rgb([0u8, 0u8, 0u8]);
@@ -373,7 +366,7 @@ impl Grid {
         for cell in &self.cells {
             if let Some(c) = cell {
                 let colour = if let Some(distance) = self.attributes(c).distance() {
-                    self.gradient_colour(
+                    util::image::gradient_colour(
                         white,
                         blue,
                         distance as f32 / self.max_distance.expect("Max distance not set") as f32,

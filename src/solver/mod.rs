@@ -2,7 +2,7 @@ pub mod dijkstra;
 
 use crate::grid::{Cell, Grid};
 #[allow(unused_imports)]
-use crate::math::diff;
+use crate::util::math;
 
 use std::collections::HashMap;
 
@@ -72,7 +72,10 @@ impl Solver for SimpleSolver {
         let (row, column) = start;
 
         for cell in grid.cells() {
-            map.insert(*cell, diff(row, cell.row()) + diff(column, cell.column()));
+            map.insert(
+                *cell,
+                math::diff(row, cell.row()) + math::diff(column, cell.column()),
+            );
         }
         Distances::new(map)
     }

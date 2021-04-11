@@ -1,7 +1,7 @@
 mod grid;
-mod math;
 mod router;
 mod solver;
+mod util;
 
 use crate::router::binarytree::BinaryTree;
 use crate::router::sidewinder::SideWinder;
