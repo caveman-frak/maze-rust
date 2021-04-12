@@ -11,12 +11,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     print!(
         "{}",
-        grid::Grid::grid(
-            5,
-            5,
-            |r, c| !((r == 0 || r == 4) && (c == 0 || c == 4)),
-            &mut BinaryTree::new(&mut rng),
-        )
+        grid::Grid::grid(5, 5, mask_corners(5, 5), &mut BinaryTree::new(&mut rng),)
     );
 
     let mut grid = grid::Grid::grid(
@@ -30,4 +25,8 @@ fn main() {
         .expect("Could not write `target/maze.png`");
 
     print!("{}", grid);
+}
+
+fn mask_corners(rows: u32, columns: u32) -> impl Fn(u32, u32) -> bool {
+    move |r, c| !((r == 0 || r == rows - 1) && (c == 0 || c == columns - 1))
 }
