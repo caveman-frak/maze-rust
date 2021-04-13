@@ -1,10 +1,11 @@
 use crate::router::{NoOp, Router};
-
-extern crate image;
-extern crate imageproc;
+use crate::solver::Distances;
+use crate::util;
 
 use image::{ImageFormat, ImageResult, Rgb, RgbImage};
 use imageproc::{drawing, rect};
+use std::char;
+use std::cmp;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
@@ -20,8 +21,13 @@ impl Cell {
     pub fn row(&self) -> u32 {
         self.row
     }
+
     pub fn column(&self) -> u32 {
         self.column
+    }
+
+    pub fn coords(&self) -> (u32, u32) {
+        (self.row, self.column)
     }
 }
 
@@ -42,20 +48,64 @@ impl Direction {
             Direction::West => Direction::East,
         }
     }
+
+    pub fn neighbour(&self, row: u32, column: u32) -> (u32, u32) {
+        match self {
+            Direction::North => (row - 1, column),
+            Direction::East => (row, column + 1),
+            Direction::South => (row + 1, column),
+            Direction::West => (row, column - 1),
+        }
+    }
+
+    pub fn checked_neighbour(
+        &self,
+        rows: u32,
+        columns: u32,
+        row: u32,
+        column: u32,
+    ) -> Option<(u32, u32)> {
+        match self {
+            Direction::North if row > 0 => Some(self.neighbour(row, column)),
+            Direction::East if column < columns - 1 => Some(self.neighbour(row, column)),
+            Direction::South if row < rows - 1 => Some(self.neighbour(row, column)),
+            Direction::West if column > 0 => Some(self.neighbour(row, column)),
+            _ => None,
+        }
+    }
+
+    pub fn offset(rows: u32, columns: u32, row: u32, column: u32) -> Option<usize> {
+        if row >= rows || column >= columns {
+            None
+        } else {
+            Some((row * columns + column) as usize)
+        }
+    }
+
+    fn all() -> std::slice::Iter<'static, Direction> {
+        [
+            Direction::North,
+            Direction::East,
+            Direction::South,
+            Direction::West,
+        ]
+        .iter()
+    }
 }
 
 #[derive(Debug)]
 struct Attributes {
     neighbours: HashMap<Direction, Cell>,
     links: HashSet<Direction>,
+    distance: Option<u32>,
 }
 
-#[allow(dead_code)]
 impl Attributes {
     fn new(neighbours: HashMap<Direction, Cell>) -> Attributes {
         Attributes {
             neighbours,
             links: HashSet::new(),
+            distance: None,
         }
     }
 
@@ -74,6 +124,10 @@ impl Attributes {
     fn remove_link(&mut self, direction: &Direction) -> bool {
         self.links.remove(direction)
     }
+
+    fn distance(&self) -> Option<u32> {
+        self.distance
+    }
 }
 
 #[derive(Debug)]
@@ -82,6 +136,7 @@ pub struct Grid {
     columns: u32,
     cells: Vec<Option<Cell>>,
     attributes: HashMap<Cell, Attributes>,
+    max_distance: Option<u32>,
 }
 
 #[allow(dead_code)]
@@ -122,6 +177,7 @@ impl Grid {
             columns,
             cells,
             attributes,
+            max_distance: None,
         };
 
         router.carve(&mut grid, c);
@@ -140,6 +196,10 @@ impl Grid {
         self.columns
     }
 
+    pub fn size(&self) -> (u32, u32) {
+        (self.rows, self.columns)
+    }
+
     /// Return a list of valid cells, exclude any that have been masked
     pub fn cells(&self) -> Vec<&Cell> {
         self.cells.iter().filter_map(|x| x.as_ref()).collect()
@@ -151,11 +211,10 @@ impl Grid {
     /// * `row` - grid row
     /// * `column` - grid column
     pub fn cell(&self, row: u32, column: u32) -> Option<&Cell> {
-        if row >= self.rows || column >= self.columns {
-            None
+        if let Some(offset) = Direction::offset(self.rows, self.columns, row, column) {
+            self.cells[offset].as_ref()
         } else {
-            let offset = self.columns * row + column;
-            self.cells[offset as usize].as_ref()
+            None
         }
     }
 
@@ -186,6 +245,13 @@ impl Grid {
 
     pub fn links(&self, cell: &Cell) -> &HashSet<Direction> {
         &self.attributes(cell).links
+    }
+
+    fn has_link(&self, cell: &Option<Cell>, direction: Direction) -> bool {
+        match cell {
+            Some(c) => self.attributes(c).has_link(&direction),
+            None => false,
+        }
     }
 
     fn attributes(&self, cell: &Cell) -> &Attributes {
@@ -228,6 +294,15 @@ impl Grid {
             }
             None => None,
         }
+    }
+
+    pub fn apply_distances(&mut self, distances: Distances) {
+        let mut max = 0u32;
+        for (cell, distance) in distances.all_cells() {
+            max = cmp::max(max, *distance);
+            self.attributes_mut(cell).distance = Some(*distance);
+        }
+        self.max_distance = Some(max);
     }
 
     fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
@@ -275,83 +350,60 @@ impl Grid {
     ) -> HashMap<Direction, Cell> {
         let mut neighbours = HashMap::new();
 
-        if cell.row > 0 {
-            if let Some(c) = cells[(columns * (cell.row - 1) + cell.column) as usize].as_ref() {
-                neighbours.insert(Direction::North, *c);
-            }
-        }
-        if cell.column < columns - 1 {
-            if let Some(c) = cells[(columns * cell.row + cell.column + 1) as usize].as_ref() {
-                neighbours.insert(Direction::East, *c);
-            }
-        }
-        if cell.row < rows - 1 {
-            if let Some(c) = cells[(columns * (cell.row + 1) + cell.column) as usize].as_ref() {
-                neighbours.insert(Direction::South, *c);
-            }
-        }
-        if cell.column > 0 {
-            if let Some(c) = cells[(columns * cell.row + cell.column - 1) as usize].as_ref() {
-                neighbours.insert(Direction::West, *c);
+        for direction in Direction::all() {
+            if let Some((row, column)) =
+                direction.checked_neighbour(rows, columns, cell.row(), cell.column())
+            {
+                if let Some(offset) = Direction::offset(rows, columns, row, column) {
+                    if let Some(c) = cells[offset] {
+                        neighbours.insert(*direction, c);
+                    }
+                }
             }
         }
         neighbours
     }
 
-    fn has_link(grid: &Grid, cell: &Option<Cell>, direction: Direction) -> bool {
-        if let Some(c) = cell {
-            return grid.attributes(c).has_link(&direction);
-        }
-        false
-    }
-
-    fn write_row<F1, F2>(&self, s: &mut String, scale: u32, row: &[Option<Cell>], f1: F1, f2: F2)
-    where
-        F1: Fn(&Grid, &Option<Cell>) -> char,
-        F2: Fn(&Grid, &Option<Cell>) -> char,
-    {
-        s.push(f1(self, &None));
-        for cell in row {
-            let ch = f2(self, cell);
-            for _ in 0..scale {
-                s.push(ch);
-            }
-            s.push(f1(self, cell));
-        }
-        s.push('\n');
-    }
-
     fn _draw(&self) -> image::RgbImage {
-        let white = Rgb([255u8, 255u8, 255u8]);
-        let black = Rgb([0u8, 0u8, 0u8]);
+        const WHITE: Rgb<u8> = Rgb([255u8, 255u8, 255u8]);
+        const BLACK: Rgb<u8> = Rgb([0u8, 0u8, 0u8]);
+        const GREY: Rgb<u8> = Rgb([128u8, 128u8, 128u8]);
+        const BLUE: Rgb<u8> = Rgb([0u8, 0u8, 255u8]);
         let size = 10;
 
         // Create a new ImgBuf with width and height and grey background
-        let mut image: RgbImage = image::ImageBuffer::from_pixel(
-            size * (self.columns + 2),
-            size * (self.rows + 2),
-            Rgb([128u8, 128u8, 128u8]),
-        );
+        let mut image: RgbImage =
+            image::ImageBuffer::from_pixel(size * (self.columns + 2), size * (self.rows + 2), GREY);
 
         // fill in the maze with white and draw a black outline
         drawing::draw_filled_rect_mut(
             &mut image,
             rect::Rect::at((size - 1) as i32, (size - 1) as i32)
                 .of_size((size * self.columns) + 1, (size * self.rows) + 1),
-            black,
+            BLACK,
         );
 
         for cell in &self.cells {
             if let Some(c) = cell {
+                let colour = if let Some(distance) = self.attributes(c).distance() {
+                    util::image::gradient_colour(
+                        WHITE,
+                        BLUE,
+                        distance as f32 / self.max_distance.expect("Max distance not set") as f32,
+                    )
+                } else {
+                    WHITE
+                };
+
                 // cut our valid cells
                 drawing::draw_filled_rect_mut(
                     &mut image,
                     rect::Rect::at((size * (c.column + 1)) as i32, (size * (c.row + 1)) as i32)
                         .of_size(size - 1, size - 1),
-                    white,
+                    colour,
                 );
                 // cut out wall from top-right to bottom-right
-                if Grid::has_link(self, &cell, Direction::East) {
+                if self.has_link(&cell, Direction::East) {
                     drawing::draw_line_segment_mut(
                         &mut image,
                         (
@@ -362,11 +414,11 @@ impl Grid {
                             ((size * (c.column + 2)) - 1) as f32,
                             ((size * (c.row + 2)) - 2) as f32,
                         ),
-                        white,
+                        colour,
                     );
                 }
                 // cut out wall from bottom-left to bottom-right
-                if Grid::has_link(self, &cell, Direction::South) {
+                if self.has_link(&cell, Direction::South) {
                     drawing::draw_line_segment_mut(
                         &mut image,
                         (
@@ -377,7 +429,7 @@ impl Grid {
                             ((size * (c.column + 2)) - 2) as f32,
                             ((size * (c.row + 2)) - 1) as f32,
                         ),
-                        white,
+                        colour,
                     );
                 }
             }
@@ -390,6 +442,22 @@ impl Grid {
 
         // Write the contents of this image to the Writer in PNG format.
         image.save_with_format(filename, ImageFormat::Png)
+    }
+
+    fn write_row<F1, F2>(&self, s: &mut String, scale: u32, row: &[Option<Cell>], f1: F1, f2: F2)
+    where
+        F1: Fn(&Grid, &Option<Cell>) -> char,
+        F2: Fn(&Grid, &Option<Cell>) -> (char, char),
+    {
+        s.push(f1(self, &None));
+        for cell in row {
+            let (ch, pad) = f2(self, cell);
+            for i in 0..scale {
+                s.push(if i == scale / 2 { ch } else { pad });
+            }
+            s.push(f1(self, cell));
+        }
+        s.push('\n');
     }
 }
 
@@ -412,7 +480,7 @@ impl fmt::Display for Grid {
 
             // write an unconditional top line
             if row == 0 {
-                self.write_row(&mut s, 3, cells, |_, _| CORNER, |_, _| HDIV);
+                self.write_row(&mut s, 3, cells, |_, _| CORNER, |_, _| (HDIV, HDIV));
             }
             // write the cell body and vertical dividers
             // mark None cells as X
@@ -428,9 +496,16 @@ impl fmt::Display for Grid {
                         VDIV
                     }
                 },
-                |_, c| match c {
-                    Option::Some(_) => CELL,
-                    Option::None => NONE,
+                |g, c| match c {
+                    Option::Some(cell) => {
+                        if let Some(distance) = g.attributes(cell).distance() {
+                            if let Some(ch) = char::from_digit(distance, 36) {
+                                return (ch, CELL);
+                            }
+                        }
+                        (CELL, CELL)
+                    }
+                    Option::None => (NONE, NONE),
                 },
             );
             // write cell corners and horizontal dividers
@@ -442,9 +517,9 @@ impl fmt::Display for Grid {
                 |_, _| CORNER,
                 |g, c| {
                     if Grid::has_link(g, c, Direction::South) {
-                        LINK
+                        (LINK, LINK)
                     } else {
-                        HDIV
+                        (HDIV, HDIV)
                     }
                 },
             );
@@ -456,6 +531,50 @@ impl fmt::Display for Grid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn check_direction_all() {
+        let mut directions = Direction::all();
+
+        assert_eq!(directions.next(), Some(&Direction::North));
+        assert_eq!(directions.next(), Some(&Direction::East));
+        assert_eq!(directions.next(), Some(&Direction::South));
+        assert_eq!(directions.next(), Some(&Direction::West));
+        assert_eq!(directions.next(), None);
+    }
+
+    #[test]
+    fn check_direction_neighbour() {
+        assert_eq!(Direction::North.neighbour(1, 1), (0, 1));
+        assert_eq!(Direction::East.neighbour(1, 1), (1, 2));
+        assert_eq!(Direction::South.neighbour(1, 1), (2, 1));
+        assert_eq!(Direction::West.neighbour(1, 1), (1, 0));
+    }
+
+    #[test]
+    fn check_direction_checked_neighbour() {
+        assert_eq!(Direction::North.checked_neighbour(3, 3, 1, 1), Some((0, 1)));
+        assert_eq!(Direction::East.checked_neighbour(3, 3, 1, 1), Some((1, 2)));
+        assert_eq!(Direction::South.checked_neighbour(3, 3, 1, 1), Some((2, 1)));
+        assert_eq!(Direction::West.checked_neighbour(3, 3, 1, 1), Some((1, 0)));
+    }
+
+    #[test]
+    fn check_direction_checked_neighbour_fail() {
+        assert_eq!(Direction::North.checked_neighbour(3, 3, 0, 1), None);
+        assert_eq!(Direction::East.checked_neighbour(3, 3, 1, 2), None);
+        assert_eq!(Direction::South.checked_neighbour(3, 3, 2, 1), None);
+        assert_eq!(Direction::West.checked_neighbour(3, 3, 1, 0), None);
+    }
+
+    #[test]
+    fn check_direction_offset() {
+        assert_eq!(Direction::offset(3, 3, 0, 2), Some(2));
+        assert_eq!(Direction::offset(3, 3, 1, 1), Some(4));
+        assert_eq!(Direction::offset(3, 3, 2, 0), Some(6));
+        assert_eq!(Direction::offset(3, 3, 3, 1), None);
+        assert_eq!(Direction::offset(3, 3, 1, 3), None);
+    }
 
     #[test]
     fn check_square() {
@@ -664,11 +783,10 @@ mod tests {
 
     #[test]
     fn check_string_masked() {
-        let newline: String = String::from("\n");
         let grid = Grid::grid(2, 2, |r, c| r != 0 || c != 0, &mut NoOp {});
 
         assert_eq!(
-            newline + &grid.to_string(),
+            format!("\n{}", grid),
             r#"
 +---+---+
 |███|   |
@@ -681,7 +799,6 @@ mod tests {
 
     #[test]
     fn check_string_linked() {
-        let newline: String = String::from("\n");
         let mut grid = Grid::square(2);
 
         let cell_00 = *grid.cell(0, 0).expect("Missing Cell 0,0");
@@ -691,7 +808,7 @@ mod tests {
         grid.link_cell(&cell_00, Direction::East);
         grid.link_cell(&cell_11, Direction::North);
         assert_eq!(
-            newline + &grid.to_string(),
+            format!("\n{}", grid),
             r#"
 +---+---+
 |       |
