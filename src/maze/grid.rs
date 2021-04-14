@@ -1,4 +1,4 @@
-use crate::maze::{Cell, Direction};
+use crate::maze::{Attributes, Cell, Direction};
 use crate::router::{NoOp, Router};
 use crate::solver::Distances;
 use crate::util;
@@ -10,8 +10,9 @@ use std::cmp;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
+use std::hash::Hash;
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Compass {
     North,
     East,
@@ -75,48 +76,11 @@ impl Direction for Compass {
 }
 
 #[derive(Debug)]
-struct Attributes {
-    neighbours: HashMap<Compass, Cell>,
-    links: HashSet<Compass>,
-    distance: Option<u32>,
-}
-
-impl Attributes {
-    fn new(neighbours: HashMap<Compass, Cell>) -> Attributes {
-        Attributes {
-            neighbours,
-            links: HashSet::new(),
-            distance: None,
-        }
-    }
-
-    fn get_neighbour(&self, compass: &Compass) -> Option<&Cell> {
-        self.neighbours.get(&compass)
-    }
-
-    fn has_link(&self, compass: &Compass) -> bool {
-        self.links.contains(&compass)
-    }
-
-    fn add_link(&mut self, compass: &Compass) -> bool {
-        self.links.insert(*compass)
-    }
-
-    fn remove_link(&mut self, compass: &Compass) -> bool {
-        self.links.remove(compass)
-    }
-
-    fn distance(&self) -> Option<u32> {
-        self.distance
-    }
-}
-
-#[derive(Debug)]
 pub struct Grid {
     rows: u32,
     columns: u32,
     cells: Vec<Option<Cell>>,
-    attributes: HashMap<Cell, Attributes>,
+    attributes: HashMap<Cell, Attributes<Compass>>,
     max_distance: Option<u32>,
 }
 
@@ -235,13 +199,13 @@ impl Grid {
         }
     }
 
-    fn attributes(&self, cell: &Cell) -> &Attributes {
+    fn attributes(&self, cell: &Cell) -> &Attributes<Compass> {
         self.attributes
             .get(cell)
             .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
     }
 
-    fn attributes_mut(&mut self, cell: &Cell) -> &mut Attributes {
+    fn attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<Compass> {
         self.attributes
             .get_mut(cell)
             .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
@@ -308,7 +272,7 @@ impl Grid {
         cells: &[Option<Cell>],
         rows: u32,
         columns: u32,
-    ) -> HashMap<Cell, Attributes> {
+    ) -> HashMap<Cell, Attributes<Compass>> {
         let mut attributes = HashMap::with_capacity((rows * columns) as usize);
 
         for element in cells {
