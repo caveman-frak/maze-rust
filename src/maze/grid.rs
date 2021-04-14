@@ -1,3 +1,4 @@
+use crate::maze::{Cell, Direction};
 use crate::router::{NoOp, Router};
 use crate::solver::Distances;
 use crate::util;
@@ -11,54 +12,39 @@ use std::collections::HashSet;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub struct Cell {
-    row: u32,
-    column: u32,
-}
-
-#[allow(dead_code)]
-impl Cell {
-    pub fn row(&self) -> u32 {
-        self.row
-    }
-
-    pub fn column(&self) -> u32 {
-        self.column
-    }
-
-    pub fn coords(&self) -> (u32, u32) {
-        (self.row, self.column)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum Direction {
+pub enum Compass {
     North,
     East,
     South,
     West,
 }
 
-impl Direction {
-    pub fn reverse(&self) -> Direction {
+impl Compass {
+    pub fn iter() -> std::slice::Iter<'static, Compass> {
+        [Compass::North, Compass::East, Compass::South, Compass::West].iter()
+    }
+}
+
+impl Direction for Compass {
+    fn reverse(&self) -> Compass {
         match self {
-            Direction::North => Direction::South,
-            Direction::East => Direction::West,
-            Direction::South => Direction::North,
-            Direction::West => Direction::East,
+            Compass::North => Compass::South,
+            Compass::East => Compass::West,
+            Compass::South => Compass::North,
+            Compass::West => Compass::East,
         }
     }
 
-    pub fn neighbour(&self, row: u32, column: u32) -> (u32, u32) {
+    fn neighbour(&self, row: u32, column: u32) -> (u32, u32) {
         match self {
-            Direction::North => (row - 1, column),
-            Direction::East => (row, column + 1),
-            Direction::South => (row + 1, column),
-            Direction::West => (row, column - 1),
+            Compass::North => (row - 1, column),
+            Compass::East => (row, column + 1),
+            Compass::South => (row + 1, column),
+            Compass::West => (row, column - 1),
         }
     }
 
-    pub fn checked_neighbour(
+    fn checked_neighbour(
         &self,
         rows: u32,
         columns: u32,
@@ -66,15 +52,15 @@ impl Direction {
         column: u32,
     ) -> Option<(u32, u32)> {
         match self {
-            Direction::North if row > 0 => Some(self.neighbour(row, column)),
-            Direction::East if column < columns - 1 => Some(self.neighbour(row, column)),
-            Direction::South if row < rows - 1 => Some(self.neighbour(row, column)),
-            Direction::West if column > 0 => Some(self.neighbour(row, column)),
+            Compass::North if row > 0 => Some(self.neighbour(row, column)),
+            Compass::East if column < columns - 1 => Some(self.neighbour(row, column)),
+            Compass::South if row < rows - 1 => Some(self.neighbour(row, column)),
+            Compass::West if column > 0 => Some(self.neighbour(row, column)),
             _ => None,
         }
     }
 
-    pub fn offset(rows: u32, columns: u32, row: u32, column: u32) -> Option<usize> {
+    fn offset(rows: u32, columns: u32, row: u32, column: u32) -> Option<usize> {
         if row >= rows || column >= columns {
             None
         } else {
@@ -82,26 +68,21 @@ impl Direction {
         }
     }
 
-    fn all() -> std::slice::Iter<'static, Direction> {
-        [
-            Direction::North,
-            Direction::East,
-            Direction::South,
-            Direction::West,
-        ]
-        .iter()
-    }
+    // fn all<Compass>() -> std::slice::Iter<'static, Compass> {
+    //     let mut v: Vec<Compass> = Vec::new();
+    //     v.iter()
+    // }
 }
 
 #[derive(Debug)]
 struct Attributes {
-    neighbours: HashMap<Direction, Cell>,
-    links: HashSet<Direction>,
+    neighbours: HashMap<Compass, Cell>,
+    links: HashSet<Compass>,
     distance: Option<u32>,
 }
 
 impl Attributes {
-    fn new(neighbours: HashMap<Direction, Cell>) -> Attributes {
+    fn new(neighbours: HashMap<Compass, Cell>) -> Attributes {
         Attributes {
             neighbours,
             links: HashSet::new(),
@@ -109,20 +90,20 @@ impl Attributes {
         }
     }
 
-    fn get_neighbour(&self, direction: &Direction) -> Option<&Cell> {
-        self.neighbours.get(&direction)
+    fn get_neighbour(&self, compass: &Compass) -> Option<&Cell> {
+        self.neighbours.get(&compass)
     }
 
-    fn has_link(&self, direction: &Direction) -> bool {
-        self.links.contains(&direction)
+    fn has_link(&self, compass: &Compass) -> bool {
+        self.links.contains(&compass)
     }
 
-    fn add_link(&mut self, direction: &Direction) -> bool {
-        self.links.insert(*direction)
+    fn add_link(&mut self, compass: &Compass) -> bool {
+        self.links.insert(*compass)
     }
 
-    fn remove_link(&mut self, direction: &Direction) -> bool {
-        self.links.remove(direction)
+    fn remove_link(&mut self, compass: &Compass) -> bool {
+        self.links.remove(compass)
     }
 
     fn distance(&self) -> Option<u32> {
@@ -211,7 +192,7 @@ impl Grid {
     /// * `row` - grid row
     /// * `column` - grid column
     pub fn cell(&self, row: u32, column: u32) -> Option<&Cell> {
-        if let Some(offset) = Direction::offset(self.rows, self.columns, row, column) {
+        if let Some(offset) = Compass::offset(self.rows, self.columns, row, column) {
             self.cells[offset].as_ref()
         } else {
             None
@@ -222,34 +203,34 @@ impl Grid {
     ///
     /// # Arguments
     /// * `cell` - the base cell
-    /// * `direction` - the direction of the neighbour
+    /// * `compass` - the compass of the neighbour
     ///
     /// ```
     ///     let grid = grid::square(3);
     ///     let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
     ///     println!(
     ///         "neighbours -> N = {:?}, E = {:?}, S = {:?}, W = {:?}",
-    ///         grid.neighbour(&cell, grid::Direction::North),
-    ///         grid.neighbour(&cell, grid::Direction::East),
-    ///         grid.neighbour(&cell, grid::Direction::South),
-    ///         grid.neighbour(&cell, grid::Direction::West)
+    ///         grid.neighbour(&cell, grid::Compass::North),
+    ///         grid.neighbour(&cell, grid::Compass::East),
+    ///         grid.neighbour(&cell, grid::Compass::South),
+    ///         grid.neighbour(&cell, grid::Compass::West)
     ///     );
     /// ```
-    pub fn neighbour(&self, cell: &Cell, direction: Direction) -> Option<&Cell> {
-        self.attributes(cell).get_neighbour(&direction)
+    pub fn neighbour(&self, cell: &Cell, compass: Compass) -> Option<&Cell> {
+        self.attributes(cell).get_neighbour(&compass)
     }
 
-    pub fn neighbours(&self, cell: &Cell) -> &HashMap<Direction, Cell> {
+    pub fn neighbours(&self, cell: &Cell) -> &HashMap<Compass, Cell> {
         &self.attributes(cell).neighbours
     }
 
-    pub fn links(&self, cell: &Cell) -> &HashSet<Direction> {
+    pub fn links(&self, cell: &Cell) -> &HashSet<Compass> {
         &self.attributes(cell).links
     }
 
-    fn has_link(&self, cell: &Option<Cell>, direction: Direction) -> bool {
+    fn has_link(&self, cell: &Option<Cell>, compass: Compass) -> bool {
         match cell {
-            Some(c) => self.attributes(c).has_link(&direction),
+            Some(c) => self.attributes(c).has_link(&compass),
             None => false,
         }
     }
@@ -266,14 +247,14 @@ impl Grid {
             .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
     }
 
-    pub fn link_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, direction);
+    pub fn link_cell(&mut self, cell: &Cell, compass: Compass) -> Option<Cell> {
+        let neighbour = self.neighbour(cell, compass);
         match neighbour {
             Some(c) => {
                 let to = *c;
 
-                self.attributes_mut(&*cell).add_link(&direction);
-                self.attributes_mut(&to).add_link(&direction.reverse());
+                self.attributes_mut(&*cell).add_link(&compass);
+                self.attributes_mut(&to).add_link(&compass.reverse());
 
                 Some(to)
             }
@@ -281,14 +262,14 @@ impl Grid {
         }
     }
 
-    pub fn unlink_cell(&mut self, cell: &Cell, direction: Direction) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, direction);
+    pub fn unlink_cell(&mut self, cell: &Cell, compass: Compass) -> Option<Cell> {
+        let neighbour = self.neighbour(cell, compass);
         match neighbour {
             Some(c) => {
                 let to = *c;
 
-                self.attributes_mut(&*cell).remove_link(&direction);
-                self.attributes_mut(&to).remove_link(&direction.reverse());
+                self.attributes_mut(&*cell).remove_link(&compass);
+                self.attributes_mut(&to).remove_link(&compass.reverse());
 
                 Some(to)
             }
@@ -347,16 +328,16 @@ impl Grid {
         rows: u32,
         columns: u32,
         cell: &Cell,
-    ) -> HashMap<Direction, Cell> {
+    ) -> HashMap<Compass, Cell> {
         let mut neighbours = HashMap::new();
 
-        for direction in Direction::all() {
+        for compass in Compass::iter() {
             if let Some((row, column)) =
-                direction.checked_neighbour(rows, columns, cell.row(), cell.column())
+                compass.checked_neighbour(rows, columns, cell.row(), cell.column())
             {
-                if let Some(offset) = Direction::offset(rows, columns, row, column) {
+                if let Some(offset) = Compass::offset(rows, columns, row, column) {
                     if let Some(c) = cells[offset] {
-                        neighbours.insert(*direction, c);
+                        neighbours.insert(*compass, c);
                     }
                 }
             }
@@ -398,36 +379,39 @@ impl Grid {
                 // cut our valid cells
                 drawing::draw_filled_rect_mut(
                     &mut image,
-                    rect::Rect::at((size * (c.column + 1)) as i32, (size * (c.row + 1)) as i32)
-                        .of_size(size - 1, size - 1),
+                    rect::Rect::at(
+                        (size * (c.column() + 1)) as i32,
+                        (size * (c.row() + 1)) as i32,
+                    )
+                    .of_size(size - 1, size - 1),
                     colour,
                 );
                 // cut out wall from top-right to bottom-right
-                if self.has_link(&cell, Direction::East) {
+                if self.has_link(&cell, Compass::East) {
                     drawing::draw_line_segment_mut(
                         &mut image,
                         (
-                            ((size * (c.column + 2)) - 1) as f32,
-                            (size * (c.row + 1)) as f32,
+                            ((size * (c.column() + 2)) - 1) as f32,
+                            (size * (c.row() + 1)) as f32,
                         ),
                         (
-                            ((size * (c.column + 2)) - 1) as f32,
-                            ((size * (c.row + 2)) - 2) as f32,
+                            ((size * (c.column() + 2)) - 1) as f32,
+                            ((size * (c.row() + 2)) - 2) as f32,
                         ),
                         colour,
                     );
                 }
                 // cut out wall from bottom-left to bottom-right
-                if self.has_link(&cell, Direction::South) {
+                if self.has_link(&cell, Compass::South) {
                     drawing::draw_line_segment_mut(
                         &mut image,
                         (
-                            (size * (c.column + 1)) as f32,
-                            ((size * (c.row + 2)) - 1) as f32,
+                            (size * (c.column() + 1)) as f32,
+                            ((size * (c.row() + 2)) - 1) as f32,
                         ),
                         (
-                            ((size * (c.column + 2)) - 2) as f32,
-                            ((size * (c.row + 2)) - 1) as f32,
+                            ((size * (c.column() + 2)) - 2) as f32,
+                            ((size * (c.row() + 2)) - 1) as f32,
                         ),
                         colour,
                     );
@@ -490,7 +474,7 @@ impl fmt::Display for Grid {
                 3,
                 cells,
                 |g, c| {
-                    if Grid::has_link(g, c, Direction::East) {
+                    if Grid::has_link(g, c, Compass::East) {
                         LINK
                     } else {
                         VDIV
@@ -516,7 +500,7 @@ impl fmt::Display for Grid {
                 cells,
                 |_, _| CORNER,
                 |g, c| {
-                    if Grid::has_link(g, c, Direction::South) {
+                    if Grid::has_link(g, c, Compass::South) {
                         (LINK, LINK)
                     } else {
                         (HDIV, HDIV)
@@ -533,47 +517,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_direction_all() {
-        let mut directions = Direction::all();
+    fn check_compass_all() {
+        let mut compasss = Compass::iter();
 
-        assert_eq!(directions.next(), Some(&Direction::North));
-        assert_eq!(directions.next(), Some(&Direction::East));
-        assert_eq!(directions.next(), Some(&Direction::South));
-        assert_eq!(directions.next(), Some(&Direction::West));
-        assert_eq!(directions.next(), None);
+        assert_eq!(compasss.next(), Some(&Compass::North));
+        assert_eq!(compasss.next(), Some(&Compass::East));
+        assert_eq!(compasss.next(), Some(&Compass::South));
+        assert_eq!(compasss.next(), Some(&Compass::West));
+        assert_eq!(compasss.next(), None);
     }
 
     #[test]
-    fn check_direction_neighbour() {
-        assert_eq!(Direction::North.neighbour(1, 1), (0, 1));
-        assert_eq!(Direction::East.neighbour(1, 1), (1, 2));
-        assert_eq!(Direction::South.neighbour(1, 1), (2, 1));
-        assert_eq!(Direction::West.neighbour(1, 1), (1, 0));
+    fn check_compass_neighbour() {
+        assert_eq!(Compass::North.neighbour(1, 1), (0, 1));
+        assert_eq!(Compass::East.neighbour(1, 1), (1, 2));
+        assert_eq!(Compass::South.neighbour(1, 1), (2, 1));
+        assert_eq!(Compass::West.neighbour(1, 1), (1, 0));
     }
 
     #[test]
-    fn check_direction_checked_neighbour() {
-        assert_eq!(Direction::North.checked_neighbour(3, 3, 1, 1), Some((0, 1)));
-        assert_eq!(Direction::East.checked_neighbour(3, 3, 1, 1), Some((1, 2)));
-        assert_eq!(Direction::South.checked_neighbour(3, 3, 1, 1), Some((2, 1)));
-        assert_eq!(Direction::West.checked_neighbour(3, 3, 1, 1), Some((1, 0)));
+    fn check_compass_checked_neighbour() {
+        assert_eq!(Compass::North.checked_neighbour(3, 3, 1, 1), Some((0, 1)));
+        assert_eq!(Compass::East.checked_neighbour(3, 3, 1, 1), Some((1, 2)));
+        assert_eq!(Compass::South.checked_neighbour(3, 3, 1, 1), Some((2, 1)));
+        assert_eq!(Compass::West.checked_neighbour(3, 3, 1, 1), Some((1, 0)));
     }
 
     #[test]
-    fn check_direction_checked_neighbour_fail() {
-        assert_eq!(Direction::North.checked_neighbour(3, 3, 0, 1), None);
-        assert_eq!(Direction::East.checked_neighbour(3, 3, 1, 2), None);
-        assert_eq!(Direction::South.checked_neighbour(3, 3, 2, 1), None);
-        assert_eq!(Direction::West.checked_neighbour(3, 3, 1, 0), None);
+    fn check_compass_checked_neighbour_fail() {
+        assert_eq!(Compass::North.checked_neighbour(3, 3, 0, 1), None);
+        assert_eq!(Compass::East.checked_neighbour(3, 3, 1, 2), None);
+        assert_eq!(Compass::South.checked_neighbour(3, 3, 2, 1), None);
+        assert_eq!(Compass::West.checked_neighbour(3, 3, 1, 0), None);
     }
 
     #[test]
-    fn check_direction_offset() {
-        assert_eq!(Direction::offset(3, 3, 0, 2), Some(2));
-        assert_eq!(Direction::offset(3, 3, 1, 1), Some(4));
-        assert_eq!(Direction::offset(3, 3, 2, 0), Some(6));
-        assert_eq!(Direction::offset(3, 3, 3, 1), None);
-        assert_eq!(Direction::offset(3, 3, 1, 3), None);
+    fn check_compass_offset() {
+        assert_eq!(Compass::offset(3, 3, 0, 2), Some(2));
+        assert_eq!(Compass::offset(3, 3, 1, 1), Some(4));
+        assert_eq!(Compass::offset(3, 3, 2, 0), Some(6));
+        assert_eq!(Compass::offset(3, 3, 3, 1), None);
+        assert_eq!(Compass::offset(3, 3, 1, 3), None);
     }
 
     #[test]
@@ -608,8 +592,8 @@ mod tests {
                     .cell(row, column)
                     .unwrap_or_else(|| panic!("Missing Cell {},{}", column, row));
 
-                assert_eq!(cell.row, row);
-                assert_eq!(cell.column, column);
+                assert_eq!(cell.row(), row);
+                assert_eq!(cell.column(), column);
             }
         }
     }
@@ -627,10 +611,10 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
 
-        assert!(matches!(grid.neighbour(cell, Direction::North), None));
-        assert!(matches!(grid.neighbour(cell, Direction::West), None));
-        assert_eq!(grid.neighbour(cell, Direction::South), grid.cell(1, 0));
-        assert_eq!(grid.neighbour(cell, Direction::East), grid.cell(0, 1));
+        assert!(matches!(grid.neighbour(cell, Compass::North), None));
+        assert!(matches!(grid.neighbour(cell, Compass::West), None));
+        assert_eq!(grid.neighbour(cell, Compass::South), grid.cell(1, 0));
+        assert_eq!(grid.neighbour(cell, Compass::East), grid.cell(0, 1));
     }
 
     #[test]
@@ -638,30 +622,30 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 2).expect("Missing Cell");
 
-        assert!(matches!(grid.neighbour(cell, Direction::North), None));
-        assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(0, 1));
-        assert_eq!(grid.neighbour(cell, Direction::South), grid.cell(1, 2));
-        assert!(matches!(grid.neighbour(cell, Direction::East), None));
+        assert!(matches!(grid.neighbour(cell, Compass::North), None));
+        assert_eq!(grid.neighbour(cell, Compass::West), grid.cell(0, 1));
+        assert_eq!(grid.neighbour(cell, Compass::South), grid.cell(1, 2));
+        assert!(matches!(grid.neighbour(cell, Compass::East), None));
     }
     #[test]
     fn check_neighbour_center() {
         let grid = Grid::square(3);
         let cell = grid.cell(1, 1).expect("Missing Cell 1,1");
 
-        assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(0, 1));
-        assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(1, 0));
-        assert_eq!(grid.neighbour(cell, Direction::South), grid.cell(2, 1));
-        assert_eq!(grid.neighbour(cell, Direction::East), grid.cell(1, 2));
+        assert_eq!(grid.neighbour(cell, Compass::North), grid.cell(0, 1));
+        assert_eq!(grid.neighbour(cell, Compass::West), grid.cell(1, 0));
+        assert_eq!(grid.neighbour(cell, Compass::South), grid.cell(2, 1));
+        assert_eq!(grid.neighbour(cell, Compass::East), grid.cell(1, 2));
     }
 
     #[test]
     fn check_neighbour_bottom_left() {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 0).expect("Missing Cell");
-        assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(1, 0));
-        assert!(matches!(grid.neighbour(cell, Direction::West), None));
-        assert!(matches!(grid.neighbour(cell, Direction::South), None));
-        assert_eq!(grid.neighbour(cell, Direction::East), grid.cell(2, 1));
+        assert_eq!(grid.neighbour(cell, Compass::North), grid.cell(1, 0));
+        assert!(matches!(grid.neighbour(cell, Compass::West), None));
+        assert!(matches!(grid.neighbour(cell, Compass::South), None));
+        assert_eq!(grid.neighbour(cell, Compass::East), grid.cell(2, 1));
     }
 
     #[test]
@@ -669,10 +653,10 @@ mod tests {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 2).expect("Missing Cell 2,2");
 
-        assert_eq!(grid.neighbour(cell, Direction::North), grid.cell(1, 2));
-        assert_eq!(grid.neighbour(cell, Direction::West), grid.cell(2, 1));
-        assert!(matches!(grid.neighbour(cell, Direction::South), None));
-        assert!(matches!(grid.neighbour(cell, Direction::East), None));
+        assert_eq!(grid.neighbour(cell, Compass::North), grid.cell(1, 2));
+        assert_eq!(grid.neighbour(cell, Compass::West), grid.cell(2, 1));
+        assert!(matches!(grid.neighbour(cell, Compass::South), None));
+        assert!(matches!(grid.neighbour(cell, Compass::East), None));
     }
 
     #[test]
@@ -681,16 +665,13 @@ mod tests {
         let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
 
         let neighbours = grid.neighbours(cell);
-        assert!(!neighbours.contains_key(&Direction::North));
-        assert!(neighbours.contains_key(&Direction::East));
-        assert!(neighbours.contains_key(&Direction::South));
-        assert!(!neighbours.contains_key(&Direction::West));
+        assert!(!neighbours.contains_key(&Compass::North));
+        assert!(neighbours.contains_key(&Compass::East));
+        assert!(neighbours.contains_key(&Compass::South));
+        assert!(!neighbours.contains_key(&Compass::West));
 
-        let neighbour = neighbours.get(&Direction::East);
-        assert_eq!(
-            neighbour.expect("Missing Cell 0,1"),
-            &Cell { row: 0, column: 1 }
-        );
+        let neighbour = neighbours.get(&Compass::East);
+        assert_eq!(neighbour.expect("Missing Cell 0,1").coords(), (0, 1));
     }
 
     #[test]
@@ -699,10 +680,10 @@ mod tests {
         let cell = grid.cell(1, 1).expect("Missing Cell 1,1");
 
         let neighbours = grid.neighbours(cell);
-        assert!(neighbours.contains_key(&Direction::North));
-        assert!(neighbours.contains_key(&Direction::East));
-        assert!(neighbours.contains_key(&Direction::South));
-        assert!(neighbours.contains_key(&Direction::West));
+        assert!(neighbours.contains_key(&Compass::North));
+        assert!(neighbours.contains_key(&Compass::East));
+        assert!(neighbours.contains_key(&Compass::South));
+        assert!(neighbours.contains_key(&Compass::West));
     }
 
     #[test]
@@ -711,10 +692,10 @@ mod tests {
         let cell = grid.cell(2, 2).expect("Missing Cell 2,2");
 
         let neighbours = grid.neighbours(cell);
-        assert!(neighbours.contains_key(&Direction::North));
-        assert!(!neighbours.contains_key(&Direction::East));
-        assert!(!neighbours.contains_key(&Direction::South));
-        assert!(neighbours.contains_key(&Direction::West));
+        assert!(neighbours.contains_key(&Compass::North));
+        assert!(!neighbours.contains_key(&Compass::East));
+        assert!(!neighbours.contains_key(&Compass::South));
+        assert!(neighbours.contains_key(&Compass::West));
     }
 
     #[test]
@@ -736,13 +717,10 @@ mod tests {
         let cell_11 = *grid.cell(1, 1).expect("Missing Cell 1,1");
 
         // add link from 1,1 North
-        assert!(matches!(
-            grid.link_cell(&cell_11, Direction::North),
-            Some(_)
-        ));
+        assert!(matches!(grid.link_cell(&cell_11, Compass::North), Some(_)));
 
-        assert!(grid.links(&cell_01).contains(&Direction::South));
-        assert!(grid.links(&cell_11).contains(&Direction::North));
+        assert!(grid.links(&cell_01).contains(&Compass::South));
+        assert!(grid.links(&cell_11).contains(&Compass::North));
     }
 
     #[test]
@@ -752,7 +730,7 @@ mod tests {
         let cell_01 = *grid.cell(0, 1).expect("Missing Cell 0,1");
 
         // add link from 1,1 North
-        assert!(matches!(grid.link_cell(&cell_01, Direction::North), None));
+        assert!(matches!(grid.link_cell(&cell_01, Compass::North), None));
         assert!(grid.links(&cell_01).is_empty());
     }
 
@@ -765,14 +743,14 @@ mod tests {
 
         // add link from 1,1 North
         assert_eq!(
-            grid.link_cell(&cell_11, Direction::North)
+            grid.link_cell(&cell_11, Compass::North)
                 .expect("Missing Cell 1,1"),
             cell_01
         );
 
         // remove the link from the South
         assert_eq!(
-            grid.unlink_cell(&cell_01, Direction::South)
+            grid.unlink_cell(&cell_01, Compass::South)
                 .expect("Missing Cell 0,1"),
             cell_11
         );
@@ -805,8 +783,8 @@ mod tests {
         let cell_11 = *grid.cell(1, 1).expect("Missing Cell 1,1");
 
         // add links from 0,0 East and 1,1 North
-        grid.link_cell(&cell_00, Direction::East);
-        grid.link_cell(&cell_11, Direction::North);
+        grid.link_cell(&cell_00, Compass::East);
+        grid.link_cell(&cell_11, Compass::North);
         assert_eq!(
             format!("\n{}", grid),
             r#"
@@ -828,10 +806,10 @@ mod tests {
             &mut NoOp {},
         );
         let cell = *grid.cell(2, 2).expect("Missing Cell 2,2");
-        grid.link_cell(&cell, Direction::North);
-        grid.link_cell(&cell, Direction::South);
-        grid.link_cell(&cell, Direction::East);
-        grid.link_cell(&cell, Direction::West);
+        grid.link_cell(&cell, Compass::North);
+        grid.link_cell(&cell, Compass::South);
+        grid.link_cell(&cell, Compass::East);
+        grid.link_cell(&cell, Compass::West);
 
         let image = grid._draw();
 

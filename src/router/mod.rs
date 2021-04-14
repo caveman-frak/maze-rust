@@ -1,7 +1,8 @@
 pub mod binarytree;
 pub mod sidewinder;
 
-use crate::grid::{Cell, Grid};
+use crate::maze::grid::Grid;
+use crate::maze::Cell;
 
 pub trait Router {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>);

@@ -1,4 +1,5 @@
-use crate::grid::{Cell, Direction, Grid};
+use crate::maze::grid::{Compass, Grid};
+use crate::maze::Cell;
 use crate::router::Router;
 use rand::{Rng, RngCore};
 
@@ -33,10 +34,10 @@ impl<'a> Router for SideWinder<'a> {
     fn by_cell(&mut self, grid: &mut Grid, cell: Cell) {
         self.run.push(cell);
         if self.close_row(&cell, grid.columns()) {
-            grid.link_cell(&self.random_cell(), Direction::North);
+            grid.link_cell(&self.random_cell(), Compass::North);
             self.run.clear();
         } else {
-            grid.link_cell(&cell, Direction::East);
+            grid.link_cell(&cell, Compass::East);
         }
     }
 }

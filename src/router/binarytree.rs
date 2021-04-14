@@ -1,4 +1,5 @@
-use crate::grid::{Cell, Direction, Grid};
+use crate::maze::grid::{Compass, Grid};
+use crate::maze::Cell;
 use crate::router::Router;
 use rand::{Rng, RngCore};
 
@@ -11,20 +12,20 @@ impl<'a> BinaryTree<'a> {
         BinaryTree { rng }
     }
 
-    fn direction(&mut self, grid: &Grid, cell: Cell) -> Option<Direction> {
-        let mut directions = Vec::new();
+    fn compass(&mut self, grid: &Grid, cell: Cell) -> Option<Compass> {
+        let mut compasss = Vec::new();
 
-        if grid.neighbour(&cell, Direction::North).is_some() {
-            directions.push(Direction::North);
+        if grid.neighbour(&cell, Compass::North).is_some() {
+            compasss.push(Compass::North);
         }
-        if grid.neighbour(&cell, Direction::East).is_some() {
-            directions.push(Direction::East);
+        if grid.neighbour(&cell, Compass::East).is_some() {
+            compasss.push(Compass::East);
         }
 
-        match directions.len() {
+        match compasss.len() {
             0 => None,
-            1 => Some(directions[0]),
-            range => Some(directions[self.rng.gen::<usize>() % range]),
+            1 => Some(compasss[0]),
+            range => Some(compasss[self.rng.gen::<usize>() % range]),
         }
     }
 }
@@ -35,8 +36,8 @@ impl<'a> Router for BinaryTree<'a> {
     }
 
     fn by_cell(&mut self, grid: &mut Grid, cell: Cell) {
-        if let Some(direction) = self.direction(grid, cell) {
-            grid.link_cell(&cell, direction);
+        if let Some(compass) = self.compass(grid, cell) {
+            grid.link_cell(&cell, compass);
         }
     }
 }
