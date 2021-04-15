@@ -1,5 +1,6 @@
 pub mod grid;
 
+use crate::maze::internal::{Attributes, MazeAccessor};
 use crate::solver::Distances;
 
 use image::{ImageFormat, ImageResult};
@@ -44,62 +45,66 @@ pub trait Direction: Eq + Hash + Clone + Copy {
 
     fn offset(rows: u32, columns: u32, row: u32, column: u32) -> Option<usize>;
 
-    // fn all<T: Direction>() -> std::slice::Iter<'static, T>;
+    fn all() -> Vec<Self>;
 }
 
-#[derive(Debug)]
-pub struct Attributes<T> {
-    neighbours: HashMap<T, Cell>,
-    links: HashSet<T>,
-    distance: Option<u32>,
-}
+mod internal {
+    use crate::maze::{Cell, Direction};
 
-impl<T: Direction> Attributes<T> {
-    fn new(neighbours: HashMap<T, Cell>) -> Attributes<T> {
-        Attributes {
-            neighbours,
-            links: HashSet::new(),
-            distance: None,
+    use std::collections::{HashMap, HashSet};
+
+    #[derive(Debug)]
+    pub struct Attributes<T> {
+        pub(super) neighbours: HashMap<T, Cell>,
+        pub(super) links: HashSet<T>,
+        pub(super) distance: Option<u32>,
+    }
+
+    impl<T: Direction> Attributes<T> {
+        pub(super) fn new(neighbours: HashMap<T, Cell>) -> Attributes<T> {
+            Attributes {
+                neighbours,
+                links: HashSet::new(),
+                distance: None,
+            }
+        }
+
+        pub(super) fn has_link(&self, direction: &T) -> bool {
+            self.links.contains(&direction)
+        }
+
+        pub(super) fn add_link(&mut self, direction: &T) -> bool {
+            self.links.insert(*direction)
+        }
+
+        pub(super) fn remove_link(&mut self, direction: &T) -> bool {
+            self.links.remove(direction)
+        }
+
+        pub(super) fn distance(&self) -> Option<u32> {
+            self.distance
         }
     }
 
-    fn get_neighbour(&self, direction: &T) -> Option<&Cell> {
-        self.neighbours.get(&direction)
-    }
+    pub trait MazeAccessor<T: Direction> {
+        fn _raw_cells(&self) -> &[Option<Cell>];
 
-    fn has_link(&self, direction: &T) -> bool {
-        self.links.contains(&direction)
-    }
+        fn _set_distance(&mut self, max: Option<u32>);
 
-    fn add_link(&mut self, direction: &T) -> bool {
-        self.links.insert(*direction)
-    }
+        fn _attributes(&self, cell: &Cell) -> &Attributes<T>;
 
-    fn remove_link(&mut self, direction: &T) -> bool {
-        self.links.remove(direction)
-    }
-
-    fn distance(&self) -> Option<u32> {
-        self.distance
+        fn _attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<T>;
     }
 }
 
 #[allow(dead_code)]
-pub trait Maze<T: Direction>: Debug {
+pub trait Maze<T: Direction>: MazeAccessor<T> + Debug {
     /// Masking function that allows all cells
     const ALLOW_ALL: &'static dyn Fn(u32, u32) -> bool = &|_, _| true;
 
     fn rows(&self) -> u32;
 
     fn columns(&self) -> u32;
-
-    fn _raw_cells(&self) -> &[Option<Cell>];
-
-    fn _set_distance(&mut self, max: Option<u32>);
-
-    fn _attributes(&self, cell: &Cell) -> &Attributes<T>;
-
-    fn _attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<T>;
 
     fn size(&self) -> (u32, u32) {
         (self.rows(), self.columns())
@@ -145,7 +150,7 @@ pub trait Maze<T: Direction>: Debug {
     ///         grid.neighbour(&cell, grid::Direction::West)
     ///     );
     /// ```
-    fn neighbour(&self, cell: &Cell, direction: T) -> Option<&Cell>;
+    // fn neighbour(&self, cell: &Cell, direction: T) -> Option<&Cell>;
 
     fn neighbours(&self, cell: &Cell) -> &HashMap<T, Cell> {
         &self._attributes(cell).neighbours
@@ -163,7 +168,7 @@ pub trait Maze<T: Direction>: Debug {
     }
 
     fn link_cell(&mut self, cell: &Cell, direction: T) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, direction);
+        let neighbour = self.neighbours(cell).get(&direction);
         match neighbour {
             Some(c) => {
                 let to = *c;
@@ -178,7 +183,7 @@ pub trait Maze<T: Direction>: Debug {
     }
 
     fn unlink_cell(&mut self, cell: &Cell, direction: T) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, direction);
+        let neighbour = self.neighbours(cell).get(&direction);
         match neighbour {
             Some(c) => {
                 let to = *c;
@@ -201,7 +206,7 @@ pub trait Maze<T: Direction>: Debug {
         self._set_distance(Some(max));
     }
 
-    fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
+    fn _build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
     where
         F: Fn(u32, u32) -> bool,
     {
@@ -246,7 +251,7 @@ pub trait Maze<T: Direction>: Debug {
     ) -> HashMap<T, Cell> {
         let mut neighbours = HashMap::new();
 
-        for direction in Self::_directions() {
+        for direction in T::all() {
             if let Some((row, column)) =
                 direction.checked_neighbour(rows, columns, cell.row(), cell.column())
             {
@@ -260,12 +265,10 @@ pub trait Maze<T: Direction>: Debug {
         neighbours
     }
 
-    fn _directions() -> Vec<T>;
-
-    fn _draw(&self) -> image::RgbImage;
+    fn draw_image(&self) -> image::RgbImage;
 
     fn draw(&self, filename: &str) -> ImageResult<()> {
-        let image = self._draw();
+        let image = self.draw_image();
 
         // Write the contents of this image to the Writer in PNG format.
         image.save_with_format(filename, ImageFormat::Png)

@@ -16,9 +16,10 @@ impl Dijkstra {
     }
 
     fn frontier(&self, map: &mut HashMap<Cell, u32>, grid: &Grid, cell: Cell, depth: u32) {
+        let neighbours = grid.neighbours(&cell);
         map.insert(cell, depth);
         for direction in grid.links(&cell) {
-            if let Some(c) = grid.neighbour(&cell, *direction) {
+            if let Some(c) = neighbours.get(direction) {
                 if !map.contains_key(c) {
                     self.frontier(map, grid, *c, depth + 1);
                 }

@@ -1,4 +1,5 @@
-use crate::maze::{Attributes, Cell, Direction, Maze};
+use crate::maze::internal::{Attributes, MazeAccessor};
+use crate::maze::{Cell, Direction, Maze};
 use crate::router::{NoOp, Router};
 use crate::util;
 
@@ -17,13 +18,11 @@ pub enum Compass {
     West,
 }
 
-impl Compass {
-    pub fn iter() -> std::slice::Iter<'static, Compass> {
-        [Compass::North, Compass::East, Compass::South, Compass::West].iter()
-    }
-}
-
 impl Direction for Compass {
+    fn all() -> Vec<Compass> {
+        vec![Compass::North, Compass::East, Compass::South, Compass::West]
+    }
+
     fn reverse(&self) -> Compass {
         match self {
             Compass::North => Compass::South,
@@ -65,11 +64,6 @@ impl Direction for Compass {
             Some((row * columns + column) as usize)
         }
     }
-
-    // fn all<Compass>() -> std::slice::Iter<'static, Compass> {
-    //     let mut v: Vec<Compass> = Vec::new();
-    //     v.iter()
-    // }
 }
 
 #[derive(Debug)]
@@ -107,8 +101,8 @@ impl Grid {
     where
         F: Fn(u32, u32) -> bool,
     {
-        let cells = Grid::build_cells(rows, columns, allowed);
-        let attributes = Grid::build_attributes(&cells, rows, columns);
+        let cells = Grid::_build_cells(rows, columns, allowed);
+        let attributes = Grid::_build_attributes(&cells, rows, columns);
         let c = cells.clone();
 
         let mut grid = Grid {
@@ -127,49 +121,15 @@ impl Grid {
     pub fn square(size: u32) -> Grid {
         Grid::grid(size, size, Grid::ALLOW_ALL, &mut NoOp {})
     }
-
-    fn build_attributes(
-        cells: &[Option<Cell>],
-        rows: u32,
-        columns: u32,
-    ) -> HashMap<Cell, Attributes<Compass>> {
-        let mut attributes = HashMap::with_capacity((rows * columns) as usize);
-
-        for element in cells {
-            if let Some(cell) = element {
-                attributes.insert(
-                    *cell,
-                    Attributes::new(Grid::_neighbours(&cells, rows, columns, &cell)),
-                );
-            }
-        }
-        attributes.shrink_to_fit();
-        attributes
-    }
 }
 
-impl Maze<Compass> for Grid {
+impl MazeAccessor<Compass> for Grid {
     fn _raw_cells(&self) -> &[Option<Cell>] {
         &self.cells
     }
 
     fn _set_distance(&mut self, max: Option<u32>) {
         self.max_distance = max;
-    }
-
-    fn _directions() -> Vec<Compass> {
-        vec![Compass::North, Compass::East, Compass::South, Compass::West]
-    }
-
-    fn rows(&self) -> u32 {
-        self.rows
-    }
-    fn columns(&self) -> u32 {
-        self.columns
-    }
-
-    fn neighbour(&self, cell: &Cell, compass: Compass) -> Option<&Cell> {
-        self._attributes(cell).get_neighbour(&compass)
     }
 
     fn _attributes(&self, cell: &Cell) -> &Attributes<Compass> {
@@ -183,48 +143,17 @@ impl Maze<Compass> for Grid {
             .get_mut(cell)
             .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
     }
+}
 
-    fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
-    where
-        F: Fn(u32, u32) -> bool,
-    {
-        let mut cells = Vec::with_capacity((rows * columns) as usize);
-
-        for row in 0..rows {
-            for column in 0..columns {
-                cells.push(if allowed(row, column) {
-                    Some(Cell { row, column })
-                } else {
-                    None
-                });
-            }
-        }
-        cells
+impl Maze<Compass> for Grid {
+    fn rows(&self) -> u32 {
+        self.rows
+    }
+    fn columns(&self) -> u32 {
+        self.columns
     }
 
-    fn _neighbours(
-        cells: &[Option<Cell>],
-        rows: u32,
-        columns: u32,
-        cell: &Cell,
-    ) -> HashMap<Compass, Cell> {
-        let mut neighbours = HashMap::new();
-
-        for compass in Compass::iter() {
-            if let Some((row, column)) =
-                compass.checked_neighbour(rows, columns, cell.row(), cell.column())
-            {
-                if let Some(offset) = Compass::offset(rows, columns, row, column) {
-                    if let Some(c) = cells[offset] {
-                        neighbours.insert(*compass, c);
-                    }
-                }
-            }
-        }
-        neighbours
-    }
-
-    fn _draw(&self) -> image::RgbImage {
+    fn draw_image(&self) -> image::RgbImage {
         const WHITE: Rgb<u8> = Rgb([255u8, 255u8, 255u8]);
         const BLACK: Rgb<u8> = Rgb([0u8, 0u8, 0u8]);
         const GREY: Rgb<u8> = Rgb([128u8, 128u8, 128u8]);
@@ -389,18 +318,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_compass_all() {
-        let mut compasss = Compass::iter();
+    fn check_direction_points() {
+        let direction = Compass::all();
+        let mut points = direction.iter();
 
-        assert_eq!(compasss.next(), Some(&Compass::North));
-        assert_eq!(compasss.next(), Some(&Compass::East));
-        assert_eq!(compasss.next(), Some(&Compass::South));
-        assert_eq!(compasss.next(), Some(&Compass::West));
-        assert_eq!(compasss.next(), None);
+        assert_eq!(points.next(), Some(&Compass::North));
+        assert_eq!(points.next(), Some(&Compass::East));
+        assert_eq!(points.next(), Some(&Compass::South));
+        assert_eq!(points.next(), Some(&Compass::West));
+        assert_eq!(points.next(), None);
     }
 
     #[test]
-    fn check_compass_neighbour() {
+    fn check_direction_neighbour() {
         assert_eq!(Compass::North.neighbour(1, 1), (0, 1));
         assert_eq!(Compass::East.neighbour(1, 1), (1, 2));
         assert_eq!(Compass::South.neighbour(1, 1), (2, 1));
@@ -408,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn check_compass_checked_neighbour() {
+    fn check_direction_checked_neighbour() {
         assert_eq!(Compass::North.checked_neighbour(3, 3, 1, 1), Some((0, 1)));
         assert_eq!(Compass::East.checked_neighbour(3, 3, 1, 1), Some((1, 2)));
         assert_eq!(Compass::South.checked_neighbour(3, 3, 1, 1), Some((2, 1)));
@@ -416,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn check_compass_checked_neighbour_fail() {
+    fn check_direction_checked_neighbour_fail() {
         assert_eq!(Compass::North.checked_neighbour(3, 3, 0, 1), None);
         assert_eq!(Compass::East.checked_neighbour(3, 3, 1, 2), None);
         assert_eq!(Compass::South.checked_neighbour(3, 3, 2, 1), None);
@@ -424,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn check_compass_offset() {
+    fn check_direction_offset() {
         assert_eq!(Compass::offset(3, 3, 0, 2), Some(2));
         assert_eq!(Compass::offset(3, 3, 1, 1), Some(4));
         assert_eq!(Compass::offset(3, 3, 2, 0), Some(6));
@@ -482,61 +412,67 @@ mod tests {
     fn check_neighbour_top_left() {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
+        let neighbours = grid.neighbours(cell);
 
-        assert!(matches!(grid.neighbour(cell, Compass::North), None));
-        assert!(matches!(grid.neighbour(cell, Compass::West), None));
-        assert_eq!(grid.neighbour(cell, Compass::South), grid.cell(1, 0));
-        assert_eq!(grid.neighbour(cell, Compass::East), grid.cell(0, 1));
+        assert!(matches!(neighbours.get(&Compass::North), None));
+        assert!(matches!(neighbours.get(&Compass::West), None));
+        assert_eq!(neighbours.get(&Compass::South), grid.cell(1, 0));
+        assert_eq!(neighbours.get(&Compass::East), grid.cell(0, 1));
     }
 
     #[test]
     fn check_neighbour_top_right() {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 2).expect("Missing Cell");
+        let neighbours = grid.neighbours(cell);
 
-        assert!(matches!(grid.neighbour(cell, Compass::North), None));
-        assert_eq!(grid.neighbour(cell, Compass::West), grid.cell(0, 1));
-        assert_eq!(grid.neighbour(cell, Compass::South), grid.cell(1, 2));
-        assert!(matches!(grid.neighbour(cell, Compass::East), None));
+        assert!(matches!(neighbours.get(&Compass::North), None));
+        assert_eq!(neighbours.get(&Compass::West), grid.cell(0, 1));
+        assert_eq!(neighbours.get(&Compass::South), grid.cell(1, 2));
+        assert!(matches!(neighbours.get(&Compass::East), None));
     }
     #[test]
     fn check_neighbour_center() {
         let grid = Grid::square(3);
         let cell = grid.cell(1, 1).expect("Missing Cell 1,1");
+        let neighbours = grid.neighbours(cell);
 
-        assert_eq!(grid.neighbour(cell, Compass::North), grid.cell(0, 1));
-        assert_eq!(grid.neighbour(cell, Compass::West), grid.cell(1, 0));
-        assert_eq!(grid.neighbour(cell, Compass::South), grid.cell(2, 1));
-        assert_eq!(grid.neighbour(cell, Compass::East), grid.cell(1, 2));
+        assert_eq!(neighbours.get(&Compass::North), grid.cell(0, 1));
+        assert_eq!(neighbours.get(&Compass::West), grid.cell(1, 0));
+        assert_eq!(neighbours.get(&Compass::South), grid.cell(2, 1));
+        assert_eq!(neighbours.get(&Compass::East), grid.cell(1, 2));
     }
 
     #[test]
     fn check_neighbour_bottom_left() {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 0).expect("Missing Cell");
-        assert_eq!(grid.neighbour(cell, Compass::North), grid.cell(1, 0));
-        assert!(matches!(grid.neighbour(cell, Compass::West), None));
-        assert!(matches!(grid.neighbour(cell, Compass::South), None));
-        assert_eq!(grid.neighbour(cell, Compass::East), grid.cell(2, 1));
+        let neighbours = grid.neighbours(cell);
+
+        assert_eq!(neighbours.get(&Compass::North), grid.cell(1, 0));
+        assert!(matches!(neighbours.get(&Compass::West), None));
+        assert!(matches!(neighbours.get(&Compass::South), None));
+        assert_eq!(neighbours.get(&Compass::East), grid.cell(2, 1));
     }
 
     #[test]
     fn check_neighbour_bottom_right() {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 2).expect("Missing Cell 2,2");
+        let neighbours = grid.neighbours(cell);
 
-        assert_eq!(grid.neighbour(cell, Compass::North), grid.cell(1, 2));
-        assert_eq!(grid.neighbour(cell, Compass::West), grid.cell(2, 1));
-        assert!(matches!(grid.neighbour(cell, Compass::South), None));
-        assert!(matches!(grid.neighbour(cell, Compass::East), None));
+        assert_eq!(neighbours.get(&Compass::North), grid.cell(1, 2));
+        assert_eq!(neighbours.get(&Compass::West), grid.cell(2, 1));
+        assert!(matches!(neighbours.get(&Compass::South), None));
+        assert!(matches!(neighbours.get(&Compass::East), None));
     }
 
     #[test]
     fn check_neighbours_top_left() {
         let grid = Grid::square(3);
         let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
-
         let neighbours = grid.neighbours(cell);
+
         assert!(!neighbours.contains_key(&Compass::North));
         assert!(neighbours.contains_key(&Compass::East));
         assert!(neighbours.contains_key(&Compass::South));
@@ -550,8 +486,8 @@ mod tests {
     fn check_neighbours_center() {
         let grid = Grid::square(3);
         let cell = grid.cell(1, 1).expect("Missing Cell 1,1");
-
         let neighbours = grid.neighbours(cell);
+
         assert!(neighbours.contains_key(&Compass::North));
         assert!(neighbours.contains_key(&Compass::East));
         assert!(neighbours.contains_key(&Compass::South));
@@ -562,8 +498,8 @@ mod tests {
     fn check_neighbours_bottom_right() {
         let grid = Grid::square(3);
         let cell = grid.cell(2, 2).expect("Missing Cell 2,2");
-
         let neighbours = grid.neighbours(cell);
+
         assert!(neighbours.contains_key(&Compass::North));
         assert!(!neighbours.contains_key(&Compass::East));
         assert!(!neighbours.contains_key(&Compass::South));
@@ -574,9 +510,9 @@ mod tests {
     fn check_masked() {
         let alternate = |r, c| r % 2 != c % 2;
         let grid = Grid::grid(2, 3, alternate, &mut NoOp {});
+
         assert_eq!(grid.cells.len(), 6);
         assert_eq!(grid.cells().len(), 3);
-
         assert!(matches!(grid.cell(0, 0), None));
         assert!(matches!(grid.cell(0, 1), Some(_)));
     }
@@ -683,7 +619,7 @@ mod tests {
         grid.link_cell(&cell, Compass::East);
         grid.link_cell(&cell, Compass::West);
 
-        let image = grid._draw();
+        let image = grid.draw_image();
 
         assert_eq!(image.width(), 70);
         assert_eq!(image.height(), 70);

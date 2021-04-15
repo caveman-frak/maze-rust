@@ -13,12 +13,13 @@ impl<'a> BinaryTree<'a> {
     }
 
     fn compass(&mut self, grid: &Grid, cell: Cell) -> Option<Compass> {
+        let neighbours = grid.neighbours(&cell);
         let mut compasss = Vec::new();
 
-        if grid.neighbour(&cell, Compass::North).is_some() {
+        if neighbours.get(&Compass::North).is_some() {
             compasss.push(Compass::North);
         }
-        if grid.neighbour(&cell, Compass::East).is_some() {
+        if neighbours.get(&Compass::East).is_some() {
             compasss.push(Compass::East);
         }
 
