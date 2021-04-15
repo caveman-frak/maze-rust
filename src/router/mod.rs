@@ -2,7 +2,7 @@ pub mod binarytree;
 pub mod sidewinder;
 
 use crate::maze::grid::Grid;
-use crate::maze::Cell;
+use crate::maze::{Cell, Maze};
 
 pub trait Router {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>);

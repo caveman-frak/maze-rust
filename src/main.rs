@@ -4,6 +4,7 @@ mod solver;
 mod util;
 
 use crate::maze::grid::Grid;
+use crate::maze::Maze;
 use crate::router::binarytree::BinaryTree;
 use crate::router::sidewinder::SideWinder;
 use crate::solver::dijkstra::Dijkstra;

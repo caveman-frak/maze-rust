@@ -1,7 +1,7 @@
 pub mod dijkstra;
 
 use crate::maze::grid::Grid;
-use crate::maze::Cell;
+use crate::maze::{Cell, Maze};
 
 #[allow(unused_imports)]
 use crate::util::math;

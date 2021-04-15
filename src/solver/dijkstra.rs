@@ -1,5 +1,5 @@
 use crate::maze::grid::Grid;
-use crate::maze::Cell;
+use crate::maze::{Cell, Maze};
 use crate::solver::{Distances, Solver};
 use std::collections::HashMap;
 

@@ -1,14 +1,11 @@
-use crate::maze::{Attributes, Cell, Direction};
+use crate::maze::{Attributes, Cell, Direction, Maze};
 use crate::router::{NoOp, Router};
-use crate::solver::Distances;
 use crate::util;
 
-use image::{ImageFormat, ImageResult, Rgb, RgbImage};
+use image::{Rgb, RgbImage};
 use imageproc::{drawing, rect};
 use std::char;
-use std::cmp;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
 
@@ -86,9 +83,6 @@ pub struct Grid {
 
 #[allow(dead_code)]
 impl Grid {
-    /// Masking function that allows all cells
-    pub const ALLOW_ALL: &'static dyn Fn(u32, u32) -> bool = &|_, _| true;
-
     /// Build a new grid instance.
     ///
     /// # Arguments
@@ -134,120 +128,60 @@ impl Grid {
         Grid::grid(size, size, Grid::ALLOW_ALL, &mut NoOp {})
     }
 
-    pub fn rows(&self) -> u32 {
+    fn build_attributes(
+        cells: &[Option<Cell>],
+        rows: u32,
+        columns: u32,
+    ) -> HashMap<Cell, Attributes<Compass>> {
+        let mut attributes = HashMap::with_capacity((rows * columns) as usize);
+
+        for element in cells {
+            if let Some(cell) = element {
+                attributes.insert(
+                    *cell,
+                    Attributes::new(Grid::_neighbours(&cells, rows, columns, &cell)),
+                );
+            }
+        }
+        attributes.shrink_to_fit();
+        attributes
+    }
+}
+
+impl Maze<Compass> for Grid {
+    fn _raw_cells(&self) -> &[Option<Cell>] {
+        &self.cells
+    }
+
+    fn _set_distance(&mut self, max: Option<u32>) {
+        self.max_distance = max;
+    }
+
+    fn _directions() -> Vec<Compass> {
+        vec![Compass::North, Compass::East, Compass::South, Compass::West]
+    }
+
+    fn rows(&self) -> u32 {
         self.rows
     }
-    pub fn columns(&self) -> u32 {
+    fn columns(&self) -> u32 {
         self.columns
     }
 
-    pub fn size(&self) -> (u32, u32) {
-        (self.rows, self.columns)
+    fn neighbour(&self, cell: &Cell, compass: Compass) -> Option<&Cell> {
+        self._attributes(cell).get_neighbour(&compass)
     }
 
-    /// Return a list of valid cells, exclude any that have been masked
-    pub fn cells(&self) -> Vec<&Cell> {
-        self.cells.iter().filter_map(|x| x.as_ref()).collect()
-    }
-
-    /// Return the cell at the row and column, or None if the cell is masked
-    ///
-    /// # Arguments
-    /// * `row` - grid row
-    /// * `column` - grid column
-    pub fn cell(&self, row: u32, column: u32) -> Option<&Cell> {
-        if let Some(offset) = Compass::offset(self.rows, self.columns, row, column) {
-            self.cells[offset].as_ref()
-        } else {
-            None
-        }
-    }
-
-    /// Return the neighbouring cell if one exists, otherwise None
-    ///
-    /// # Arguments
-    /// * `cell` - the base cell
-    /// * `compass` - the compass of the neighbour
-    ///
-    /// ```
-    ///     let grid = grid::square(3);
-    ///     let cell = grid.cell(0, 0).expect("Missing Cell 0,0");
-    ///     println!(
-    ///         "neighbours -> N = {:?}, E = {:?}, S = {:?}, W = {:?}",
-    ///         grid.neighbour(&cell, grid::Compass::North),
-    ///         grid.neighbour(&cell, grid::Compass::East),
-    ///         grid.neighbour(&cell, grid::Compass::South),
-    ///         grid.neighbour(&cell, grid::Compass::West)
-    ///     );
-    /// ```
-    pub fn neighbour(&self, cell: &Cell, compass: Compass) -> Option<&Cell> {
-        self.attributes(cell).get_neighbour(&compass)
-    }
-
-    pub fn neighbours(&self, cell: &Cell) -> &HashMap<Compass, Cell> {
-        &self.attributes(cell).neighbours
-    }
-
-    pub fn links(&self, cell: &Cell) -> &HashSet<Compass> {
-        &self.attributes(cell).links
-    }
-
-    fn has_link(&self, cell: &Option<Cell>, compass: Compass) -> bool {
-        match cell {
-            Some(c) => self.attributes(c).has_link(&compass),
-            None => false,
-        }
-    }
-
-    fn attributes(&self, cell: &Cell) -> &Attributes<Compass> {
+    fn _attributes(&self, cell: &Cell) -> &Attributes<Compass> {
         self.attributes
             .get(cell)
             .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
     }
 
-    fn attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<Compass> {
+    fn _attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<Compass> {
         self.attributes
             .get_mut(cell)
             .unwrap_or_else(|| panic!("Missing attribute for {:?}", cell))
-    }
-
-    pub fn link_cell(&mut self, cell: &Cell, compass: Compass) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, compass);
-        match neighbour {
-            Some(c) => {
-                let to = *c;
-
-                self.attributes_mut(&*cell).add_link(&compass);
-                self.attributes_mut(&to).add_link(&compass.reverse());
-
-                Some(to)
-            }
-            None => None,
-        }
-    }
-
-    pub fn unlink_cell(&mut self, cell: &Cell, compass: Compass) -> Option<Cell> {
-        let neighbour = self.neighbour(cell, compass);
-        match neighbour {
-            Some(c) => {
-                let to = *c;
-
-                self.attributes_mut(&*cell).remove_link(&compass);
-                self.attributes_mut(&to).remove_link(&compass.reverse());
-
-                Some(to)
-            }
-            None => None,
-        }
-    }
-
-    pub fn apply_distances(&mut self, distances: Distances) {
-        let mut max = 0u32;
-        for (cell, distance) in distances.all_cells() {
-            max = cmp::max(max, *distance);
-            self.attributes_mut(cell).distance = Some(*distance);
-        }
-        self.max_distance = Some(max);
     }
 
     fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
@@ -266,25 +200,6 @@ impl Grid {
             }
         }
         cells
-    }
-
-    fn build_attributes(
-        cells: &[Option<Cell>],
-        rows: u32,
-        columns: u32,
-    ) -> HashMap<Cell, Attributes<Compass>> {
-        let mut attributes = HashMap::with_capacity((rows * columns) as usize);
-
-        for element in cells {
-            if let Some(cell) = element {
-                attributes.insert(
-                    *cell,
-                    Attributes::new(Grid::_neighbours(&cells, rows, columns, &cell)),
-                );
-            }
-        }
-        attributes.shrink_to_fit();
-        attributes
     }
 
     fn _neighbours(
@@ -330,7 +245,7 @@ impl Grid {
 
         for cell in &self.cells {
             if let Some(c) = cell {
-                let colour = if let Some(distance) = self.attributes(c).distance() {
+                let colour = if let Some(distance) = self._attributes(c).distance() {
                     util::image::gradient_colour(
                         WHITE,
                         BLUE,
@@ -383,13 +298,6 @@ impl Grid {
             }
         }
         image
-    }
-
-    pub fn draw(&self, filename: &str) -> ImageResult<()> {
-        let image = self._draw();
-
-        // Write the contents of this image to the Writer in PNG format.
-        image.save_with_format(filename, ImageFormat::Png)
     }
 
     fn write_row<F1, F2>(&self, s: &mut String, scale: u32, row: &[Option<Cell>], f1: F1, f2: F2)
@@ -446,7 +354,7 @@ impl fmt::Display for Grid {
                 },
                 |g, c| match c {
                     Option::Some(cell) => {
-                        if let Some(distance) = g.attributes(cell).distance() {
+                        if let Some(distance) = g._attributes(cell).distance() {
                             if let Some(ch) = char::from_digit(distance, 36) {
                                 return (ch, CELL);
                             }

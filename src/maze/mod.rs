@@ -48,7 +48,7 @@ pub trait Direction: Eq + Hash + Clone + Copy {
 }
 
 #[derive(Debug)]
-struct Attributes<T> {
+pub struct Attributes<T> {
     neighbours: HashMap<T, Cell>,
     links: HashSet<T>,
     distance: Option<u32>,
@@ -84,7 +84,8 @@ impl<T: Direction> Attributes<T> {
     }
 }
 
-trait Maze<'a, T: Direction>: Debug {
+#[allow(dead_code)]
+pub trait Maze<T: Direction>: Debug {
     /// Masking function that allows all cells
     const ALLOW_ALL: &'static dyn Fn(u32, u32) -> bool = &|_, _| true;
 
@@ -92,11 +93,17 @@ trait Maze<'a, T: Direction>: Debug {
 
     fn columns(&self) -> u32;
 
+    fn _raw_cells(&self) -> &[Option<Cell>];
+
+    fn _set_distance(&mut self, max: Option<u32>);
+
+    fn _attributes(&self, cell: &Cell) -> &Attributes<T>;
+
+    fn _attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<T>;
+
     fn size(&self) -> (u32, u32) {
         (self.rows(), self.columns())
     }
-
-    fn _raw_cells(&self) -> &[Option<Cell>];
 
     /// Return a list of valid cells, exclude any that have been masked
     fn cells(&self) -> Vec<&Cell> {
@@ -139,28 +146,21 @@ trait Maze<'a, T: Direction>: Debug {
     ///     );
     /// ```
     fn neighbour(&self, cell: &Cell, direction: T) -> Option<&Cell>;
-    // {
-    //     self.attributes(cell).get_neighbour(&direction)
-    // }
 
     fn neighbours(&self, cell: &Cell) -> &HashMap<T, Cell> {
-        &self.attributes(cell).neighbours
+        &self._attributes(cell).neighbours
     }
 
     fn links(&self, cell: &Cell) -> &HashSet<T> {
-        &self.attributes(cell).links
+        &self._attributes(cell).links
     }
 
     fn has_link(&self, cell: &Option<Cell>, direction: T) -> bool {
         match cell {
-            Some(c) => self.attributes(c).has_link(&direction),
+            Some(c) => self._attributes(c).has_link(&direction),
             None => false,
         }
     }
-
-    fn attributes(&self, cell: &Cell) -> &Attributes<T>;
-
-    fn attributes_mut(&mut self, cell: &Cell) -> &mut Attributes<T>;
 
     fn link_cell(&mut self, cell: &Cell, direction: T) -> Option<Cell> {
         let neighbour = self.neighbour(cell, direction);
@@ -168,8 +168,8 @@ trait Maze<'a, T: Direction>: Debug {
             Some(c) => {
                 let to = *c;
 
-                self.attributes_mut(&*cell).add_link(&direction);
-                self.attributes_mut(&to).add_link(&direction.reverse());
+                self._attributes_mut(&*cell).add_link(&direction);
+                self._attributes_mut(&to).add_link(&direction.reverse());
 
                 Some(to)
             }
@@ -183,8 +183,8 @@ trait Maze<'a, T: Direction>: Debug {
             Some(c) => {
                 let to = *c;
 
-                self.attributes_mut(&*cell).remove_link(&direction);
-                self.attributes_mut(&to).remove_link(&direction.reverse());
+                self._attributes_mut(&*cell).remove_link(&direction);
+                self._attributes_mut(&to).remove_link(&direction.reverse());
 
                 Some(to)
             }
@@ -196,12 +196,10 @@ trait Maze<'a, T: Direction>: Debug {
         let mut max = 0u32;
         for (cell, distance) in distances.all_cells() {
             max = cmp::max(max, *distance);
-            self.attributes_mut(cell).distance = Some(*distance);
+            self._attributes_mut(cell).distance = Some(*distance);
         }
         self._set_distance(Some(max));
     }
-
-    fn _set_distance(&self, max: Option<u32>);
 
     fn build_cells<F>(rows: u32, columns: u32, allowed: F) -> Vec<Option<Cell>>
     where
@@ -254,7 +252,7 @@ trait Maze<'a, T: Direction>: Debug {
             {
                 if let Some(offset) = T::offset(rows, columns, row, column) {
                     if let Some(c) = cells[offset] {
-                        neighbours.insert(direction.clone(), c);
+                        neighbours.insert(direction, c);
                     }
                 }
             }

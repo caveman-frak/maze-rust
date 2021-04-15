@@ -1,5 +1,5 @@
 use crate::maze::grid::{Compass, Grid};
-use crate::maze::Cell;
+use crate::maze::{Cell, Maze};
 use crate::router::Router;
 use rand::{Rng, RngCore};
 
