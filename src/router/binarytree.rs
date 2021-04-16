@@ -9,11 +9,11 @@ pub struct BinaryTree<'a, T: Direction> {
 }
 
 impl<'a, T: Direction> BinaryTree<'a, T> {
-    pub fn new(rng: &'a mut dyn RngCore) -> BinaryTree<'a, Compass> {
-        BinaryTree::custom(rng, vec![Compass::North, Compass::East])
+    pub fn new_for_compass(rng: &'a mut dyn RngCore) -> BinaryTree<'a, Compass> {
+        BinaryTree::new(rng, vec![Compass::North, Compass::East])
     }
 
-    pub fn custom(rng: &'a mut dyn RngCore, preferred: Vec<T>) -> BinaryTree<'a, T> {
+    pub fn new(rng: &'a mut dyn RngCore, preferred: Vec<T>) -> BinaryTree<'a, T> {
         BinaryTree { rng, preferred }
     }
 
@@ -59,7 +59,7 @@ mod tests {
             3,
             3,
             Grid::ALLOW_ALL,
-            &mut BinaryTree::<Compass>::new(&mut rng),
+            &mut BinaryTree::<Compass>::new_for_compass(&mut rng),
         );
 
         assert_eq!(

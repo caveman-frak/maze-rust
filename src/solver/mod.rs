@@ -1,15 +1,14 @@
 pub mod dijkstra;
 
-use crate::maze::grid::Grid;
-use crate::maze::Cell;
+use crate::maze::{Cell, Direction, Maze};
 
 #[allow(unused_imports)]
 use crate::util::math;
 
 use std::collections::HashMap;
 
-pub trait Solver {
-    fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances;
+pub trait Solver<T: Direction, M: Maze<T>> {
+    fn solve(&self, grid: &M, start: (u32, u32)) -> Distances;
 }
 
 #[derive(Debug)]
@@ -68,16 +67,15 @@ impl Distances {
 
 mod internal {
     use super::{Distances, Solver};
-    use crate::maze::grid::Grid;
-    use crate::maze::Maze;
+    use crate::maze::{Direction, Maze};
     use crate::util::math;
 
     use std::collections::HashMap;
 
     pub struct SimpleSolver {}
 
-    impl Solver for SimpleSolver {
-        fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances {
+    impl<T: Direction, M: Maze<T>> Solver<T, M> for SimpleSolver {
+        fn solve(&self, grid: &M, start: (u32, u32)) -> Distances {
             let mut map = HashMap::new();
             let (row, column) = start;
 
@@ -95,6 +93,7 @@ mod internal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::maze::grid::Grid;
     use crate::maze::Maze;
     use crate::solver::internal::SimpleSolver;
 

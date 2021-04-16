@@ -17,7 +17,7 @@ fn main() {
             5,
             5,
             mask_corners(5, 5),
-            &mut BinaryTree::<Compass>::new(&mut rng),
+            &mut BinaryTree::<Compass>::new_for_compass(&mut rng),
         )
     );
 
@@ -25,7 +25,7 @@ fn main() {
         10,
         10,
         Grid::ALLOW_ALL,
-        &mut SideWinder::<Compass>::new(&mut rng),
+        &mut SideWinder::<Compass>::new_for_compass(&mut rng),
     );
 
     grid.apply_distances(Dijkstra::solve(&grid, (0, 0)));

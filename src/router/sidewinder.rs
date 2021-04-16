@@ -11,11 +11,11 @@ pub struct SideWinder<'a, T: Direction> {
 
 #[allow(dead_code)]
 impl<'a, T: Direction> SideWinder<'a, T> {
-    pub fn new(rng: &'a mut dyn RngCore) -> SideWinder<'a, Compass> {
-        SideWinder::custom(rng, (Compass::North, Compass::East))
+    pub fn new_for_compass(rng: &'a mut dyn RngCore) -> SideWinder<'a, Compass> {
+        SideWinder::new(rng, (Compass::North, Compass::East))
     }
 
-    pub fn custom(rng: &'a mut dyn RngCore, directions: (T, T)) -> SideWinder<'a, T> {
+    pub fn new(rng: &'a mut dyn RngCore, directions: (T, T)) -> SideWinder<'a, T> {
         SideWinder {
             rng,
             directions,
@@ -63,7 +63,7 @@ mod tests {
             3,
             3,
             Grid::ALLOW_ALL,
-            &mut SideWinder::<Compass>::new(&mut rng),
+            &mut SideWinder::<Compass>::new_for_compass(&mut rng),
         );
 
         assert_eq!(

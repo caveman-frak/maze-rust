@@ -1,5 +1,4 @@
-use crate::maze::grid::Grid;
-use crate::maze::{Cell, Maze};
+use crate::maze::{Cell, Direction, Maze};
 use crate::solver::{Distances, Solver};
 use std::collections::HashMap;
 
@@ -11,29 +10,35 @@ impl Dijkstra {
         Dijkstra {}
     }
 
-    pub fn solve(grid: &Grid, start: (u32, u32)) -> Distances {
+    pub fn solve<T: Direction, M: Maze<T>>(grid: &M, start: (u32, u32)) -> Distances {
         Dijkstra::new().solve(grid, start)
     }
 
-    fn frontier(&self, map: &mut HashMap<Cell, u32>, grid: &Grid, cell: Cell, depth: u32) {
-        let neighbours = grid.neighbours(&cell);
+    fn frontier<T: Direction, M: Maze<T>>(
+        &self,
+        map: &mut HashMap<Cell, u32>,
+        maze: &M,
+        cell: Cell,
+        depth: u32,
+    ) {
+        let neighbours = maze.neighbours(&cell);
         map.insert(cell, depth);
 
-        for direction in grid.links(&cell) {
+        for direction in maze.links(&cell) {
             if let Some(c) = neighbours.get(direction) {
                 if !map.contains_key(c) {
-                    self.frontier(map, grid, *c, depth + 1);
+                    self.frontier(map, maze, *c, depth + 1);
                 }
             }
         }
     }
 }
 
-impl Solver for Dijkstra {
-    fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances {
-        let cell = grid.cell(start.0, start.1).expect("Invalid starting cell");
+impl<T: Direction, M: Maze<T>> Solver<T, M> for Dijkstra {
+    fn solve(&self, maze: &M, start: (u32, u32)) -> Distances {
+        let cell = maze.cell(start.0, start.1).expect("Invalid starting cell");
         let mut map = HashMap::new();
-        self.frontier(&mut map, grid, *cell, 0);
+        self.frontier(&mut map, maze, *cell, 0);
 
         Distances::new(map)
     }
@@ -53,7 +58,7 @@ mod tests {
             3,
             3,
             Grid::ALLOW_ALL,
-            &mut SideWinder::<Compass>::new(&mut rng),
+            &mut SideWinder::<Compass>::new_for_compass(&mut rng),
         );
 
         let solver = Dijkstra::new();
