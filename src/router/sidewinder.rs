@@ -26,18 +26,18 @@ impl<'a> SideWinder<'a> {
     }
 }
 
-impl<'a> Router<Compass> for SideWinder<'a> {
-    fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
-        self.carve_by_row(grid, cells);
+impl<'a> Router<Compass, Grid> for SideWinder<'a> {
+    fn carve(&mut self, maze: &mut Grid, cells: Vec<Option<Cell>>) {
+        self.carve_by_row(maze, cells);
     }
 
-    fn by_cell(&mut self, grid: &mut Grid, cell: Cell) {
+    fn by_cell(&mut self, maze: &mut Grid, cell: Cell) {
         self.run.push(cell);
-        if self.close_row(&cell, grid.columns()) {
-            grid.link_cell(&self.random_cell(), Compass::North);
+        if self.close_row(&cell, maze.columns()) {
+            maze.link_cell(&self.random_cell(), Compass::North);
             self.run.clear();
         } else {
-            grid.link_cell(&cell, Compass::East);
+            maze.link_cell(&cell, Compass::East);
         }
     }
 }

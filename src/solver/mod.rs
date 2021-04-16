@@ -1,7 +1,7 @@
 pub mod dijkstra;
 
 use crate::maze::grid::Grid;
-use crate::maze::{Cell, Maze};
+use crate::maze::Cell;
 
 #[allow(unused_imports)]
 use crate::util::math;
@@ -66,26 +66,37 @@ impl Distances {
     }
 }
 
-pub struct SimpleSolver {}
+mod internal {
+    use super::{Distances, Solver};
+    use crate::maze::grid::Grid;
+    use crate::maze::Maze;
+    use crate::util::math;
 
-impl Solver for SimpleSolver {
-    fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances {
-        let mut map = HashMap::new();
-        let (row, column) = start;
+    use std::collections::HashMap;
 
-        for cell in grid.cells() {
-            map.insert(
-                *cell,
-                math::diff(row, cell.row()) + math::diff(column, cell.column()),
-            );
+    pub struct SimpleSolver {}
+
+    impl Solver for SimpleSolver {
+        fn solve(&self, grid: &Grid, start: (u32, u32)) -> Distances {
+            let mut map = HashMap::new();
+            let (row, column) = start;
+
+            for cell in grid.cells() {
+                map.insert(
+                    *cell,
+                    math::diff(row, cell.row()) + math::diff(column, cell.column()),
+                );
+            }
+            Distances::new(map)
         }
-        Distances::new(map)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::maze::Maze;
+    use crate::solver::internal::SimpleSolver;
 
     #[test]
     fn check_build_distances() {

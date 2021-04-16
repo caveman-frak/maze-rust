@@ -98,7 +98,12 @@ impl Grid {
     /// );
     /// ```
     ///
-    pub fn grid<F>(rows: u32, columns: u32, allowed: F, router: &mut dyn Router<Compass>) -> Grid
+    pub fn grid<F>(
+        rows: u32,
+        columns: u32,
+        allowed: F,
+        router: &mut dyn Router<Compass, Grid>,
+    ) -> Grid
     where
         F: Fn(u32, u32) -> bool,
     {

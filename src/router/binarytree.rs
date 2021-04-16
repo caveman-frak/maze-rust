@@ -12,8 +12,8 @@ impl<'a> BinaryTree<'a> {
         BinaryTree { rng }
     }
 
-    fn compass(&mut self, grid: &Grid, cell: Cell) -> Option<Compass> {
-        let neighbours = grid.neighbours(&cell);
+    fn compass(&mut self, maze: &Grid, cell: Cell) -> Option<Compass> {
+        let neighbours = maze.neighbours(&cell);
         let mut compasss = Vec::new();
 
         if neighbours.get(&Compass::North).is_some() {
@@ -31,14 +31,14 @@ impl<'a> BinaryTree<'a> {
     }
 }
 
-impl<'a> Router<Compass> for BinaryTree<'a> {
-    fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
-        self.carve_by_cell(grid, cells);
+impl<'a> Router<Compass, Grid> for BinaryTree<'a> {
+    fn carve(&mut self, maze: &mut Grid, cells: Vec<Option<Cell>>) {
+        self.carve_by_cell(maze, cells);
     }
 
-    fn by_cell(&mut self, grid: &mut Grid, cell: Cell) {
-        if let Some(compass) = self.compass(grid, cell) {
-            grid.link_cell(&cell, compass);
+    fn by_cell(&mut self, maze: &mut Grid, cell: Cell) {
+        if let Some(compass) = self.compass(maze, cell) {
+            maze.link_cell(&cell, compass);
         }
     }
 }
