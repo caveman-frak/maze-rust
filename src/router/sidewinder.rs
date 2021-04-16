@@ -26,7 +26,7 @@ impl<'a> SideWinder<'a> {
     }
 }
 
-impl<'a> Router for SideWinder<'a> {
+impl<'a> Router<Compass> for SideWinder<'a> {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
         self.carve_by_row(grid, cells);
     }

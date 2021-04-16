@@ -1,6 +1,7 @@
 use crate::maze::internal::{Attributes, MazeAccessor};
 use crate::maze::{Cell, Direction, Maze};
-use crate::router::{NoOp, Router};
+use crate::router::internal::NoOp;
+use crate::router::Router;
 use crate::util;
 
 use image::{Rgb, RgbImage};
@@ -97,7 +98,7 @@ impl Grid {
     /// );
     /// ```
     ///
-    pub fn grid<F>(rows: u32, columns: u32, allowed: F, router: &mut dyn Router) -> Grid
+    pub fn grid<F>(rows: u32, columns: u32, allowed: F, router: &mut dyn Router<Compass>) -> Grid
     where
         F: Fn(u32, u32) -> bool,
     {

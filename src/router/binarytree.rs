@@ -31,7 +31,7 @@ impl<'a> BinaryTree<'a> {
     }
 }
 
-impl<'a> Router for BinaryTree<'a> {
+impl<'a> Router<Compass> for BinaryTree<'a> {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
         self.carve_by_cell(grid, cells);
     }

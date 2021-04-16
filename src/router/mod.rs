@@ -2,9 +2,9 @@ pub mod binarytree;
 pub mod sidewinder;
 
 use crate::maze::grid::Grid;
-use crate::maze::{Cell, Maze};
+use crate::maze::{Cell, Direction, Maze};
 
-pub trait Router {
+pub trait Router<T: Direction> {
     fn carve(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>);
 
     fn carve_by_cell(&mut self, grid: &mut Grid, cells: Vec<Option<Cell>>) {
@@ -34,8 +34,14 @@ pub trait Router {
     }
 }
 
-pub struct NoOp {}
+pub mod internal {
+    use super::Router;
+    use crate::maze::grid::Grid;
+    use crate::maze::{Cell, Direction};
 
-impl Router for NoOp {
-    fn carve(&mut self, _grid: &mut Grid, _cells: Vec<Option<Cell>>) {}
+    pub struct NoOp {}
+
+    impl<T: Direction> Router<T> for NoOp {
+        fn carve(&mut self, _grid: &mut Grid, _cells: Vec<Option<Cell>>) {}
+    }
 }
