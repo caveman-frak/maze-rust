@@ -18,6 +18,7 @@ impl Dijkstra {
     fn frontier(&self, map: &mut HashMap<Cell, u32>, grid: &Grid, cell: Cell, depth: u32) {
         let neighbours = grid.neighbours(&cell);
         map.insert(cell, depth);
+
         for direction in grid.links(&cell) {
             if let Some(c) = neighbours.get(direction) {
                 if !map.contains_key(c) {
@@ -41,13 +42,19 @@ impl Solver for Dijkstra {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::maze::grid::{Compass, Grid};
     use crate::router::sidewinder::SideWinder;
     use rand::rngs::mock::StepRng;
 
     #[test]
     fn check_build_distances() {
         let mut rng = StepRng::new(1, 1);
-        let grid = Grid::grid(3, 3, Grid::ALLOW_ALL, &mut SideWinder::new(&mut rng));
+        let grid = Grid::grid(
+            3,
+            3,
+            Grid::ALLOW_ALL,
+            &mut SideWinder::<Compass>::new(&mut rng),
+        );
 
         let solver = Dijkstra::new();
         let distances = solver.solve(&grid, (2, 0));

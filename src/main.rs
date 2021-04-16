@@ -3,7 +3,7 @@ mod router;
 mod solver;
 mod util;
 
-use crate::maze::grid::Grid;
+use crate::maze::grid::{Compass, Grid};
 use crate::maze::Maze;
 use crate::router::binarytree::BinaryTree;
 use crate::router::sidewinder::SideWinder;
@@ -13,10 +13,20 @@ fn main() {
     let mut rng = rand::thread_rng();
     print!(
         "{}",
-        Grid::grid(5, 5, mask_corners(5, 5), &mut BinaryTree::new(&mut rng),)
+        Grid::grid(
+            5,
+            5,
+            mask_corners(5, 5),
+            &mut BinaryTree::<Compass>::new(&mut rng),
+        )
     );
 
-    let mut grid = Grid::grid(10, 10, Grid::ALLOW_ALL, &mut SideWinder::new(&mut rng));
+    let mut grid = Grid::grid(
+        10,
+        10,
+        Grid::ALLOW_ALL,
+        &mut SideWinder::<Compass>::new(&mut rng),
+    );
 
     grid.apply_distances(Dijkstra::solve(&grid, (0, 0)));
     grid.draw("target/maze.png")
