@@ -103,7 +103,7 @@ impl Grid {
         columns: u32,
         allowed: F,
         router: &mut dyn Router<Compass, Grid>,
-    ) -> Grid
+    ) -> Self
     where
         F: Fn(u32, u32) -> bool,
     {
@@ -124,7 +124,7 @@ impl Grid {
         grid
     }
 
-    pub fn square(size: u32) -> Grid {
+    pub fn square(size: u32) -> Self {
         Grid::grid(size, size, Grid::ALLOW_ALL, &mut NoOp {})
     }
 }

@@ -6,7 +6,7 @@ pub struct Dijkstra {}
 
 #[allow(dead_code)]
 impl Dijkstra {
-    pub fn new() -> Dijkstra {
+    pub fn new() -> Self {
         Dijkstra {}
     }
 
@@ -77,5 +77,18 @@ mod tests {
         assert_eq!(distances.cells(5).len(), 2);
         assert_eq!(distances.cells(6).len(), 1);
         assert_eq!(distances.cells(7).len(), 0);
+    }
+
+    #[test]
+    fn check_solve() {
+        let mut rng = StepRng::new(1, 1);
+        let grid = Grid::grid(
+            3,
+            3,
+            Grid::ALLOW_ALL,
+            &mut SideWinder::<Compass>::new_for_compass(&mut rng),
+        );
+        let distances = Dijkstra::solve(&grid, (0, 0));
+        assert_eq!(distances.start().coords(), (0, 0));
     }
 }

@@ -98,15 +98,64 @@ mod tests {
     use crate::solver::internal::SimpleSolver;
 
     #[test]
-    fn check_build_distances() {
-        let grid = Grid::square(2);
+    fn check_distances_start() {
+        let grid = Grid::square(4);
         let distances = SimpleSolver {}.solve(&grid, (0, 0));
 
         assert_eq!(distances.start().coords(), (0, 0));
+    }
+
+    #[test]
+    fn check_distances_cell() {
+        let grid = Grid::square(4);
+        let distances = SimpleSolver {}.solve(&grid, (0, 0));
+
         assert_eq!(
             distances.distance(*grid.cell(1, 1).expect("Missing cell 1,1")),
             2
         );
+    }
+
+    #[test]
+    fn check_distances_cells() {
+        let grid = Grid::square(4);
+        let distances = SimpleSolver {}.solve(&grid, (0, 0));
+
         assert_eq!(distances.cells(1).len(), 2);
+        assert_eq!(distances.cells(4).len(), 3);
+    }
+
+    #[test]
+    fn check_distances_all_cells() {
+        let grid = Grid::square(4);
+        let distances = SimpleSolver {}.solve(&grid, (0, 0));
+
+        assert_eq!(distances.all_cells().len(), 16);
+    }
+
+    #[test]
+    fn check_build_distances() {
+        let grid = Grid::square(2);
+        let mut map = HashMap::new();
+        map.insert(*grid.cell(0, 0).unwrap(), 1u32);
+        map.insert(*grid.cell(1, 1).unwrap(), 2u32);
+
+        let distances = Distances::build_distances(&map);
+
+        assert_eq!(distances.get(&1).unwrap().len(), 1);
+        assert_eq!(distances.get(&1).unwrap().get(0).unwrap().coords(), (0, 0));
+        assert_eq!(distances.get(&2).unwrap().len(), 1);
+        assert_eq!(distances.get(&2).unwrap().get(0).unwrap().coords(), (1, 1));
+    }
+
+    #[test]
+    #[should_panic]
+    fn check_invalid_distance_zero() {
+        let grid = Grid::square(2);
+        let mut map = HashMap::new();
+        map.insert(*grid.cell(0, 0).unwrap(), 1);
+
+        let distances = Distances::new(map);
+        distances.start();
     }
 }

@@ -15,7 +15,7 @@ impl<'a, T: Direction> SideWinder<'a, T> {
         SideWinder::new(rng, (Compass::North, Compass::East))
     }
 
-    pub fn new(rng: &'a mut dyn RngCore, directions: (T, T)) -> SideWinder<'a, T> {
+    pub fn new(rng: &'a mut dyn RngCore, directions: (T, T)) -> Self {
         SideWinder {
             rng,
             directions,
@@ -23,8 +23,11 @@ impl<'a, T: Direction> SideWinder<'a, T> {
         }
     }
 
-    fn close_row(&mut self, cell: &Cell, columns: u32) -> bool {
-        cell.column() == columns - 1 || (cell.row() > 0 && (self.rng.gen::<u16>() % 2 == 0))
+    fn close_row<M: Maze<T>>(&mut self, cell: &Cell, maze: &M, top: &T, side: &T) -> bool {
+        let neighbours = maze.neighbours(&cell);
+
+        !neighbours.contains_key(side)
+            || (neighbours.contains_key(top) && (self.rng.gen::<u16>() % 2 == 0))
     }
 
     fn random_cell(&mut self) -> Cell {
@@ -38,10 +41,10 @@ impl<'a, T: Direction, M: Maze<T>> Router<T, M> for SideWinder<'a, T> {
     }
 
     fn by_cell(&mut self, maze: &mut M, cell: Cell) {
-        let (ceiling, side) = self.directions;
+        let (top, side) = self.directions;
         self.run.push(cell);
-        if self.close_row(&cell, maze.columns()) {
-            maze.link_cell(&self.random_cell(), ceiling);
+        if self.close_row(&cell, maze, &top, &side) {
+            maze.link_cell(&self.random_cell(), top);
             self.run.clear();
         } else {
             maze.link_cell(&cell, side);

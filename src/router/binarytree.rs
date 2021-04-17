@@ -13,7 +13,7 @@ impl<'a, T: Direction> BinaryTree<'a, T> {
         BinaryTree::new(rng, vec![Compass::North, Compass::East])
     }
 
-    pub fn new(rng: &'a mut dyn RngCore, preferred: Vec<T>) -> BinaryTree<'a, T> {
+    pub fn new(rng: &'a mut dyn RngCore, preferred: Vec<T>) -> Self {
         BinaryTree { rng, preferred }
     }
 
