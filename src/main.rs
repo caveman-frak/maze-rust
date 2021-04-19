@@ -9,6 +9,7 @@ use crate::router::binarytree::BinaryTree;
 use crate::router::sidewinder::SideWinder;
 use crate::solver::dijkstra::Dijkstra;
 
+#[cfg(not(tarpaulin_include))]
 fn main() {
     let mut rng = rand::thread_rng();
     print!(
@@ -37,4 +38,22 @@ fn main() {
 
 fn mask_corners(rows: u32, columns: u32) -> impl Fn(u32, u32) -> bool {
     move |r, c| !((r == 0 || r == rows - 1) && (c == 0 || c == columns - 1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_mask_corners() {
+        let f = mask_corners(5, 5);
+
+        assert_eq!(f(0, 0), false);
+        assert_eq!(f(0, 2), true);
+        assert_eq!(f(0, 4), false);
+        assert_eq!(f(2, 2), true);
+        assert_eq!(f(4, 0), false);
+        assert_eq!(f(4, 2), true);
+        assert_eq!(f(4, 4), false);
+    }
 }

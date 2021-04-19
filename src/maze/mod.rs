@@ -290,3 +290,16 @@ pub trait Maze<T: Direction>: MazeAccessor<T> + Debug {
         s.push('\n');
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::maze::grid::{Compass, Grid};
+
+    #[test]
+    fn check_allow_all_mask() {
+        let f = <Grid as Maze<Compass>>::ALLOW_ALL;
+
+        assert_eq!(f(0, 0), true);
+    }
+}

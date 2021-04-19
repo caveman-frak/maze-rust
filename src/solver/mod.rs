@@ -158,4 +158,24 @@ mod tests {
         let distances = Distances::new(map);
         distances.start();
     }
+
+    #[test]
+    fn check_string_distances() {
+        let mut grid = Grid::square(2);
+        let solver = SimpleSolver {};
+        let distances = solver.solve(&grid, (0, 0));
+
+        grid.apply_distances(distances);
+
+        assert_eq!(
+            format!("\n{}", grid),
+            r#"
++---+---+
+| 0 | 1 |
++---+---+
+| 1 | 2 |
++---+---+
+"#
+        );
+    }
 }
