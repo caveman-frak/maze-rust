@@ -2,7 +2,7 @@ use crate::maze::internal::{Attributes, MazeAccessor};
 use crate::maze::{Cell, Direction, Maze};
 use crate::router::internal::NoOp;
 use crate::router::Router;
-use crate::util;
+use crate::util::image::gradient_colour;
 
 use image::{Rgb, RgbImage};
 use imageproc::{drawing, rect};
@@ -181,7 +181,7 @@ impl Maze<Compass> for Grid {
         for cell in &self.cells {
             if let Some(c) = cell {
                 let colour = if let Some(distance) = self._attributes(c).distance() {
-                    util::image::gradient_colour(
+                    gradient_colour(
                         WHITE,
                         BLUE,
                         distance as f32 / self.max_distance.expect("Max distance not set") as f32,
@@ -190,43 +190,37 @@ impl Maze<Compass> for Grid {
                     WHITE
                 };
 
-                // cut our valid cells
+                // cut out valid cells
                 drawing::draw_filled_rect_mut(
                     &mut image,
                     rect::Rect::at(
-                        (size * (c.column() + 1)) as i32,
-                        (size * (c.row() + 1)) as i32,
+                        (size * (c.column() + 1) + 1) as i32,
+                        (size * (c.row() + 1) + 1) as i32,
                     )
-                    .of_size(size - 1, size - 1),
+                    .of_size(size - 3, size - 3),
                     colour,
                 );
                 // cut out wall from top-right to bottom-right
                 if self.has_link(&cell, Compass::East) {
-                    drawing::draw_line_segment_mut(
+                    drawing::draw_filled_rect_mut(
                         &mut image,
-                        (
-                            ((size * (c.column() + 2)) - 1) as f32,
-                            (size * (c.row() + 1)) as f32,
-                        ),
-                        (
-                            ((size * (c.column() + 2)) - 1) as f32,
-                            ((size * (c.row() + 2)) - 2) as f32,
-                        ),
+                        rect::Rect::at(
+                            (size * (c.column() + 2) - 2) as i32,
+                            (size * (c.row() + 1) + 3) as i32,
+                        )
+                        .of_size(3, size - 7),
                         colour,
                     );
                 }
                 // cut out wall from bottom-left to bottom-right
                 if self.has_link(&cell, Compass::South) {
-                    drawing::draw_line_segment_mut(
+                    drawing::draw_filled_rect_mut(
                         &mut image,
-                        (
-                            (size * (c.column() + 1)) as f32,
-                            ((size * (c.row() + 2)) - 1) as f32,
-                        ),
-                        (
-                            ((size * (c.column() + 2)) - 2) as f32,
-                            ((size * (c.row() + 2)) - 1) as f32,
-                        ),
+                        rect::Rect::at(
+                            (size * (c.column() + 1) + 3) as i32,
+                            (size * (c.row() + 2) - 2) as i32,
+                        )
+                        .of_size(size - 7, 3),
                         colour,
                     );
                 }
@@ -366,6 +360,12 @@ mod tests {
         assert_eq!(Compass::offset(3, 3, 2, 0), Some(6));
         assert_eq!(Compass::offset(3, 3, 3, 1), None);
         assert_eq!(Compass::offset(3, 3, 1, 3), None);
+    }
+
+    #[test]
+    fn check_direction_adjusted_columns() {
+        assert_eq!(Compass::adjusted_columns(3, 3), 3);
+        assert_eq!(Compass::adjusted_columns(3, 5), 5);
     }
 
     #[test]

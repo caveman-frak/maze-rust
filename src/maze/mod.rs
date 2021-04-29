@@ -30,11 +30,18 @@ impl Cell {
     }
 }
 
-pub trait Direction: Eq + Hash + Clone + Copy {
+/// Trait describing cells directional relationship with other cells
+///
+/// For a simple rectangular grid use the `Compass` implementation that
+/// provides N, E, S, W directions with N/S along being +/- row and E/W being +/- column.
+pub trait Direction: Debug + Eq + Hash + Clone + Copy {
+    /// Return the complimentary direction
     fn reverse(&self) -> Self;
 
+    /// Return the coordinates for the neighbouring cell in the specified direction
     fn neighbour(&self, row: u32, column: u32) -> (u32, u32);
 
+    /// Return the coordinates of the neighbouring cell checking for boundary and masked cells
     fn checked_neighbour(
         &self,
         rows: u32,
@@ -43,13 +50,21 @@ pub trait Direction: Eq + Hash + Clone + Copy {
         column: u32,
     ) -> Option<(u32, u32)>;
 
+    // Calculate the offset position of the specified cell in the sized grid
     fn offset(rows: u32, columns: u32, row: u32, column: u32) -> Option<usize>;
 
+    /// Calculate the adjusted number of columns for a specific row
+    /// For a standard rectangular grid this will just be the grids column count
+    fn adjusted_columns(_rows: u32, columns: u32) -> u32 {
+        columns
+    }
+
+    // Return a vector of all meaningful directions
     fn all() -> Vec<Self>;
 }
 
 mod internal {
-    use crate::maze::{Cell, Direction};
+    use super::*;
 
     use std::collections::{HashMap, HashSet};
 
