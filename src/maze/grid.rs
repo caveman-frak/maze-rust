@@ -228,22 +228,6 @@ impl Maze<Compass> for Grid {
         }
         image
     }
-
-    fn write_row<F1, F2>(&self, s: &mut String, scale: u32, row: &[Option<Cell>], f1: F1, f2: F2)
-    where
-        F1: Fn(&Grid, &Option<Cell>) -> char,
-        F2: Fn(&Grid, &Option<Cell>) -> (char, char),
-    {
-        s.push(f1(self, &None));
-        for cell in row {
-            let (ch, pad) = f2(self, cell);
-            for i in 0..scale {
-                s.push(if i == scale / 2 { ch } else { pad });
-            }
-            s.push(f1(self, cell));
-        }
-        s.push('\n');
-    }
 }
 
 impl fmt::Display for Grid {
